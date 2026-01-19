@@ -1,0 +1,81 @@
+# =========================
+# Node / React
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+.next/
+out/
+coverage/
+
+# =========================
+# Python / FastAPI
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+*.log
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =========================
+# FastAPI / Uvicorn
+# =========================
+uvicorn.log
+gunicorn.log
+
+# =========================
+# Jupyter / Notebooks
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Testing
+# =========================
+htmlcov/
+.coverage
+.tox/
+
+# =========================
+# Others
+# =========================
+*.sqlite3
+*.db
+*.bak
+*.tmp
