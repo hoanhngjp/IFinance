@@ -30,6 +30,9 @@ pip-wheel-metadata/
 .pyre/
 .pytype/
 *.log
+backend/venv/
+backend/__pycache__/
+backend/.pytest_cache/
 
 # Virtual environments
 venv/
@@ -43,6 +46,7 @@ ENV/
 .env
 .env.*
 !.env.example
+backend/.env
 
 # =========================
 # IDE / OS
