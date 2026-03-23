@@ -36,4 +36,5 @@ class Category(Base):
     budgets = relationship("Budget", back_populates="category")
 
     # Self-referential relationship (Đệ quy danh mục Cha - Con)
-    subcategories = relationship("Category", backref="parent", remote_side=[category_id])
+    parent = relationship("Category", remote_side=[category_id], back_populates="subcategories")
+    subcategories = relationship("Category", back_populates="parent")
