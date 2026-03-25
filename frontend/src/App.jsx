@@ -17,6 +17,7 @@ import Investments from './pages/Investments/Investments';
 import Subscriptions from './pages/Subscriptions/Subscriptions';
 import AIChat from './pages/AIChat/AIChat';
 import Profile from './pages/Profile/Profile';
+import Budgets from './pages/Budgets/Budgets';
 
 // Component phụ cho Header trên Desktop
 function DesktopHeader() {
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/subs" element={<Subscriptions />} />
           <Route path="/ai-chat" element={<AIChat />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/budgets" element={<Budgets />} />
         </Route>
 
       </Routes>
