@@ -1,117 +1,169 @@
-import React from 'react';
-import { User, ArrowDownRight, ArrowUpRight, Wallet, Landmark, CreditCard } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, ArrowDownRight, ArrowUpRight, Wallet, Landmark, CreditCard, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import axiosClient from '../../api/axiosClient';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
-export default function Dashboard() {
-  const wallets = [
-    { id: 1, name: 'Tiền mặt', type: 'cash', balance: 2500000, icon: Wallet },
-    { id: 2, name: 'Vietcombank', type: 'bank', balance: 18500000, icon: Landmark },
-    { id: 3, name: 'Thẻ Tín Dụng', type: 'credit', balance: -5000000, icon: CreditCard },
-  ];
+// Hàm chọn icon Ví dựa trên type
+const getWalletIcon = (type) => {
+  if (type === 'cash') return Wallet;
+  if (type === 'bank') return Landmark;
+  if (type === 'credit') return CreditCard;
+  return Activity;
+};
 
-  const recentTxs = [
-    { id: 1, type: 'expense', amount: 50000, category: 'Ăn uống', wallet: 'Tiền mặt', date: 'Hôm nay', icon: '🍜' },
-    { id: 2, type: 'expense', amount: 120000, category: 'Di chuyển', wallet: 'Momo', date: 'Hôm qua', icon: '⛽' },
-    { id: 3, type: 'income', amount: 15000000, category: 'Lương', wallet: 'VCB', date: '05/03/2026', icon: '💰' },
-  ];
+export default function Dashboard() {
+  const [wallets, setWallets] = useState([]);
+  const [recentTxs, setRecentTxs] = useState([]);
+  const [walletMap, setWalletMap] = useState({});
+  const [categoryMap, setCategoryMap] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Dùng Promise.all để gọi song song 3 API, tăng tốc độ load web
+        const [walletsRes, categoriesRes, txRes] = await Promise.all([
+          axiosClient.get('/wallets/'),
+          axiosClient.get('/categories/'),
+          axiosClient.get('/transactions/?limit=5') // Chỉ lấy 5 giao dịch gần nhất
+        ]);
+
+        setWallets(walletsRes.data);
+
+        // 1. Tạo Map để tra cứu Tên Ví nhanh
+        const wMap = {};
+        walletsRes.data.forEach(w => { wMap[w.wallet_id] = w.name; });
+        setWalletMap(wMap);
+
+        // 2. Tạo Map để tra cứu Tên & Icon Danh mục (Dùng đệ quy vì danh mục có cha-con)
+        const cMap = {};
+        const flattenCategories = (cats) => {
+          cats.forEach(c => {
+            cMap[c.category_id] = { name: c.name, icon: c.icon || '📌' };
+            if (c.subcategories && c.subcategories.length > 0) {
+              flattenCategories(c.subcategories);
+            }
+          });
+        };
+        flattenCategories(categoriesRes.data);
+        setCategoryMap(cMap);
+
+        // 3. Đổ dữ liệu Giao dịch
+        setRecentTxs(txRes.data);
+
+      } catch (error) {
+        console.error("Lỗi tải Dashboard:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (isLoading) {
+    return <div className="min-h-screen flex justify-center items-center bg-gray-50">Đang tải dữ liệu...</div>;
+  }
+
+  // Tính tổng tài sản
+  const totalBalance = wallets.reduce((sum, wallet) => sum + Number(wallet.balance), 0);
 
   return (
-    // Max-w-7xl giúp nội dung không bị bè ra quá mức trên màn hình Ultrawide
-    <div className="animate-fade-in mx-auto max-w-7xl">
-
-      {/* Khu vực Tổng quan (Hero Section) */}
-      <div className="bg-indigo-600 lg:rounded-3xl lg:m-6 rounded-b-3xl p-6 lg:p-8 text-white shadow-md">
-        <div className="flex justify-between items-center mb-6">
+    <div className="p-6 lg:p-8 bg-gray-50 min-h-screen animate-fade-in pb-20 lg:pb-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6 lg:mb-8">
           <div>
-            <p className="text-indigo-200 text-sm lg:text-base">Chào buổi sáng,</p>
-            <h1 className="text-xl lg:text-2xl font-semibold">Minh Hiếu</h1>
+            <p className="text-gray-500 text-sm font-medium lg:text-base mb-1">Tổng tài sản</p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(totalBalance)}</h2>
           </div>
-          <Link to="/profile" className="lg:hidden w-10 h-10 bg-indigo-500 rounded-full border-2 border-indigo-300 flex items-center justify-center">
-            <User size={20} className="text-white" />
-          </Link>
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 text-indigo-600 lg:hidden">
+            <User size={24} />
+          </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="text-center lg:text-left">
-            <p className="text-indigo-200 text-sm mb-1">Tổng số dư khả dụng</p>
-            <h2 className="text-4xl lg:text-5xl font-bold tracking-tight">{formatCurrency(21000000)}</h2>
-          </div>
-
-          <div className="bg-white/10 rounded-2xl p-4 lg:p-6 flex justify-between lg:gap-8 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="bg-emerald-500/20 p-2 lg:p-3 rounded-full"><ArrowDownRight size={20} className="text-emerald-400" /></div>
-              <div>
-                <p className="text-xs lg:text-sm text-indigo-200">Thu (Tháng này)</p>
-                <p className="font-semibold lg:text-xl text-white">{formatCurrency(15000000)}</p>
-              </div>
+        {/* Cụm chức năng nhanh */}
+        <div className="grid grid-cols-2 gap-3 lg:gap-4 mb-8">
+          <div className="bg-emerald-500 p-4 lg:p-5 rounded-2xl text-white shadow-sm shadow-emerald-200 hover:bg-emerald-600 transition-colors cursor-pointer">
+            <div className="bg-white/20 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center mb-3">
+              <ArrowDownRight size={24} />
             </div>
-            <div className="w-px bg-indigo-400/30"></div>
-            <div className="flex items-center gap-3">
-               <div>
-                <p className="text-xs lg:text-sm text-indigo-200 text-right">Chi (Tháng này)</p>
-                <p className="font-semibold lg:text-xl text-white">{formatCurrency(4500000)}</p>
-              </div>
-              <div className="bg-rose-500/20 p-2 lg:p-3 rounded-full"><ArrowUpRight size={20} className="text-rose-400" /></div>
+            <p className="font-semibold lg:text-lg mb-1">Thu nhập</p>
+            <p className="text-emerald-100 text-sm font-medium">Thêm khoản thu</p>
+          </div>
+          <div className="bg-rose-500 p-4 lg:p-5 rounded-2xl text-white shadow-sm shadow-rose-200 hover:bg-rose-600 transition-colors cursor-pointer">
+            <div className="bg-white/20 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center mb-3">
+              <ArrowUpRight size={24} />
+            </div>
+            <p className="font-semibold lg:text-lg mb-1">Chi tiêu</p>
+            <p className="text-rose-100 text-sm font-medium">Thêm khoản chi</p>
+          </div>
+        </div>
+
+        {/* Nội dung chính */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Lịch sử giao dịch */}
+          <div className="lg:col-span-2">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-lg lg:text-xl text-slate-800">Giao dịch gần đây</h3>
+              <Link to="/transactions" className="text-indigo-600 text-sm font-medium hover:underline">Xem tất cả</Link>
+            </div>
+            <div className="space-y-3">
+              {recentTxs.length === 0 ? (
+                <div className="text-center p-6 bg-white rounded-2xl border border-gray-100 text-gray-500">Chưa có giao dịch nào</div>
+              ) : (
+                recentTxs.map(tx => {
+                  const isIncome = tx.transaction_type === 'income';
+                  const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓' };
+                  const walletName = walletMap[tx.wallet_id] || 'Ví ẩn';
+
+                  return (
+                    <div key={tx.transaction_id} className="flex items-center justify-between p-4 lg:p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-gray-50 flex items-center justify-center text-xl lg:text-2xl border border-gray-100">
+                          {catInfo.icon}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-800 lg:text-lg">{catInfo.name}</p>
+                          <p className="text-xs lg:text-sm text-gray-500 mt-0.5">{walletName} • {tx.date}</p>
+                        </div>
+                      </div>
+                      <div className={`font-semibold lg:text-lg ${isIncome ? 'text-emerald-600' : 'text-slate-800'}`}>
+                        {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Danh sách Ví */}
+          <div className="lg:col-span-1">
+            <div className="flex justify-between items-center mb-4 mt-6 lg:mt-0">
+              <h3 className="font-semibold text-lg lg:text-xl text-slate-800">Ví của tôi</h3>
+              <button className="text-indigo-600 text-sm font-medium hover:underline">Quản lý</button>
+            </div>
+            <div className="space-y-3">
+              {wallets.map(wallet => {
+                const IconComponent = getWalletIcon(wallet.type);
+                return (
+                  <div key={wallet.wallet_id} className="p-4 lg:p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-indigo-100 transition-colors">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
+                        <IconComponent size={20} />
+                      </div>
+                      <span className="font-semibold text-slate-700">{wallet.name}</span>
+                    </div>
+                    <p className="text-lg lg:text-xl font-bold text-slate-800">{formatCurrency(wallet.balance)}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Grid chia 2 cột trên PC (Cột Ví chiếm 1/3, Cột Giao dịch chiếm 2/3) */}
-      <div className="p-6 lg:px-6 lg:py-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Ví của tôi */}
-        <div className="lg:col-span-1">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-lg">Ví của tôi</h3>
-            <button className="text-indigo-600 text-sm font-medium hover:underline">Quản lý</button>
-          </div>
-          {/* Trên Mobile: Cuộn ngang. Trên PC: Danh sách dọc (grid 1 cột) hoặc grid 2 cột */}
-          <div className="flex lg:flex-col gap-4 overflow-x-auto lg:overflow-visible pb-2 hide-scrollbar">
-            {wallets.map(wallet => (
-              <div key={wallet.id} className="min-w-[140px] lg:w-full bg-white border border-gray-100 p-4 lg:p-5 rounded-2xl shadow-sm flex lg:items-center gap-4 flex-col lg:flex-row transition-hover hover:shadow-md">
-                <div className={`w-fit p-3 rounded-xl ${wallet.type === 'credit' ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                  <wallet.icon size={20} />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">{wallet.name}</p>
-                  <p className={`font-semibold text-lg lg:mt-0.5 ${wallet.balance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                    {formatCurrency(wallet.balance)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Giao dịch gần đây */}
-        <div className="lg:col-span-2">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-lg">Giao dịch gần đây</h3>
-            <Link to="/transactions" className="text-indigo-600 text-sm font-medium hover:underline">Xem tất cả</Link>
-          </div>
-          <div className="space-y-3">
-            {recentTxs.map(tx => (
-              <div key={tx.id} className="flex items-center justify-between p-4 lg:p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:bg-gray-50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-gray-50 flex items-center justify-center text-xl lg:text-2xl border border-gray-100">
-                    {tx.icon}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-800 lg:text-lg">{tx.category}</p>
-                    <p className="text-xs lg:text-sm text-gray-500 mt-0.5">{tx.wallet} • {tx.date}</p>
-                  </div>
-                </div>
-                <div className={`font-semibold lg:text-lg ${tx.type === 'income' ? 'text-emerald-500' : 'text-slate-800'}`}>
-                  {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
       </div>
     </div>
   );

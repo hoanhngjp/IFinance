@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation, Outlet } from 'react-router-dom';
 import { PlusCircle } from 'lucide-react';
 
 // Import Components Layout
@@ -33,34 +33,55 @@ function DesktopHeader() {
   );
 }
 
+// ==========================================
+// TẠO LAYOUT CHÍNH: Chứa Sidebar và BottomNav
+// ==========================================
+function MainLayout() {
+  return (
+    <div className="flex h-screen bg-gray-50 font-sans text-slate-800 overflow-hidden">
+
+      <Sidebar />
+
+      <div className="flex-1 flex flex-col relative w-full lg:max-w-none">
+        <DesktopHeader />
+
+        <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
+          {/* <Outlet /> chính là nơi React Router sẽ render các trang con (Dashboard, Transactions...) vào đây */}
+          <Outlet />
+        </div>
+
+        <BottomNav />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen bg-gray-50 font-sans text-slate-800 overflow-hidden">
+      <Routes>
+        {/* ==========================================
+            NHÓM 1: AUTH ROUTES (KHÔNG CÓ SIDEBAR)
+            ========================================== */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-        <Sidebar />
 
-        <div className="flex-1 flex flex-col relative w-full lg:max-w-none">
-          <DesktopHeader />
+        {/* ==========================================
+            NHÓM 2: MAIN ROUTES (BỌC TRONG LAYOUT CÓ SIDEBAR)
+            ========================================== */}
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/transactions" element={<TransactionsList />} />
+          <Route path="/add" element={<AddTransaction />} />
+          <Route path="/debts" element={<Debts />} />
+          <Route path="/investments" element={<Investments />} />
+          <Route path="/subs" element={<Subscriptions />} />
+          <Route path="/ai-chat" element={<AIChat />} />
+          <Route path="/profile" element={<Profile />} />
+        </Route>
 
-          <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/transactions" element={<TransactionsList />} />
-              <Route path="/add" element={<AddTransaction />} />
-              <Route path="/debts" element={<Debts />} />
-              <Route path="/investments" element={<Investments />} />
-              <Route path="/subs" element={<Subscriptions />} />
-              <Route path="/ai-chat" element={<AIChat />} />
-              <Route path="/profile" element={<Profile />} />
-            </Routes>
-          </div>
-
-          <BottomNav />
-        </div>
-      </div>
+      </Routes>
     </BrowserRouter>
   );
 }

@@ -81,7 +81,7 @@ def get_transactions(
     # Lấy danh sách giao dịch, sắp xếp mới nhất lên đầu
     query = db.query(Transaction).filter(Transaction.user_id == current_user.user_id)
     total = query.count()
-    transactions = query.order_by(desc(Transaction.transaction_date), desc(Transaction.transaction_id)).offset(
+    transactions = query.order_by(desc(Transaction.date), desc(Transaction.transaction_id)).offset(
         skip).limit(limit).all()
 
     return {
