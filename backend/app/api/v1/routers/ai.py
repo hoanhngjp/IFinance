@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import io
+from PIL import Image
 import google.generativeai as genai
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
@@ -161,21 +163,79 @@ def parse_natural_language(
 # ==========================================
 @router.post("/ocr")
 def ocr_receipt(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user)
+        file: UploadFile = File(...),
+        current_user: User = Depends(get_current_user)
 ):
-    # Khung (Placeholder) cho tính năng OCR
-    return {
-        "status": "success",
-        "data": {
-            "merchant": "Trích xuất mẫu",
-            "total": 0,
-            "date": "2026-03-26",
-            "items": [],
-            "ocr_data": {}
-        }
-    }
+    # 1. Kiểm tra file có phải là hình ảnh không
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File không hợp lệ. Vui lòng tải lên một bức ảnh (JPEG, PNG).")
 
+    # 2. Đọc file ảnh thành bộ nhớ đệm
+    try:
+        image_bytes = file.file.read()
+        img = Image.open(io.BytesIO(image_bytes))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Không thể đọc được ảnh. File có thể bị hỏng.")
+
+    # 3. Kịch bản Prompt bóc tách hóa đơn
+    prompt = f"""
+    Bạn là một chuyên gia AI về bóc tách dữ liệu hóa đơn mua hàng (Receipt OCR).
+    Hãy nhìn vào bức ảnh hóa đơn này và trích xuất thông tin thành ĐỊNH DẠNG JSON NGHIÊM NGẶT.
+    BẮT BUỘC KHÔNG trả về bất kỳ văn bản nào khác ngoài khối JSON.
+
+    Quy tắc trích xuất:
+    1. merchant: Tên cửa hàng, siêu thị, quán cafe (VD: Highlands Coffee, Circle K, Lotte Mart...).
+    2. total: Tổng số tiền cuối cùng người dùng phải trả (Chuyển thành số nguyên, VD: 59000).
+    3. date: Ngày in trên hóa đơn (Định dạng YYYY-MM-DD). Nếu không thấy rõ, hãy dùng ngày hôm nay là: {datetime.utcnow().date()}
+    4. items: Danh sách các món hàng (Tên món, số lượng, đơn giá).
+
+    Cấu trúc JSON mong muốn:
+    ```json
+    {{
+        "merchant": "Highlands Coffee",
+        "total": 59000,
+        "date": "2026-03-27",
+        "items": [
+            {{ "name": "Phin Sữa Đá", "quantity": 1, "price": 29000 }},
+            {{ "name": "Trà Sen Vàng", "quantity": 1, "price": 30000 }}
+        ],
+        "ocr_data": {{
+            "raw_text": "Trích xuất 1-2 dòng text thô nổi bật trên hóa đơn để tham chiếu"
+        }}
+    }}
+    ```
+    """
+
+    # 4. Gửi Ảnh + Prompt cho Gemini xử lý
+    try:
+        print("Đang gửi ảnh hóa đơn cho AI xử lý...")
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        # Gemini nhận vào một mảng chứa cả Text và Hình ảnh
+        response = model.generate_content([prompt, img])
+        res_text = response.text.strip()
+
+        # Tiền xử lý JSON
+        json_match = re.search(r'```json\n(.*?)\n```', res_text, re.DOTALL)
+        if json_match:
+            res_text = json_match.group(1).strip()
+        elif res_text.startswith("```"):
+            res_text = res_text[3:-3].strip()
+
+        result_json = json.loads(res_text)
+
+        return {
+            "status": "success",
+            "message": "Trích xuất hóa đơn thành công",
+            "data": result_json
+        }
+
+    except json.JSONDecodeError:
+        print(f"Lỗi Decode JSON từ OCR: {res_text}")
+        raise HTTPException(status_code=500,
+                            detail="AI phân tích thành công nhưng định dạng dữ liệu không chuẩn. Vui lòng thử lại.")
+    except Exception as e:
+        print(f"Lỗi AI OCR: {e}")
+        raise HTTPException(status_code=500, detail="Không thể quét hóa đơn này. Vui lòng thử chụp lại rõ nét hơn nhé.")
 
 # ==========================================
 # 3. TÍNH NĂNG AI CHATBOT (Trợ lý ảo RAG)
