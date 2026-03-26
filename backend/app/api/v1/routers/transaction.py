@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from typing import Optional
+from datetime import date
 
 from app.db.database import get_db
 from app.models.wallet_category import Wallet, Category
@@ -74,22 +76,39 @@ def create_transaction(
 @router.get("/", response_model=TransactionListResponse)
 def get_transactions(
         skip: int = Query(0, ge=0),
-        limit: int = Query(50, ge=1, le=100),
+        limit: int = Query(100, ge=1),
+        type: Optional[str] = Query(None, description="Lọc: expense/income"),
+        wallet_id: Optional[int] = Query(None, description="Lọc theo ID ví"),
+        category_id: Optional[int] = Query(None, description="Lọc theo ID danh mục"),
+        start_date: Optional[date] = Query(None, description="Từ ngày"),
+        end_date: Optional[date] = Query(None, description="Đến ngày"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    # Lấy danh sách giao dịch, sắp xếp mới nhất lên đầu
+    # Khởi tạo câu query cơ bản (chỉ lấy giao dịch của user đang đăng nhập)
     query = db.query(Transaction).filter(Transaction.user_id == current_user.user_id)
+
+    # BẮT ĐẦU ÁP DỤNG CÁC BỘ LỌC (Dựa theo API Design)
+    if type:
+        query = query.filter(Transaction.transaction_type == type)
+    if wallet_id:
+        query = query.filter(Transaction.wallet_id == wallet_id)
+    if category_id:
+        query = query.filter(Transaction.category_id == category_id)
+    if start_date:
+        query = query.filter(Transaction.date >= start_date)
+    if end_date:
+        query = query.filter(Transaction.date <= end_date)
+
     total = query.count()
-    transactions = query.order_by(desc(Transaction.date), desc(Transaction.transaction_id)).offset(
-        skip).limit(limit).all()
+    transactions = query.order_by(desc(Transaction.date), desc(Transaction.transaction_id)).offset(skip).limit(
+        limit).all()
 
     return {
         "status": "success",
         "total": total,
         "data": [TransactionResponse.model_validate(tx) for tx in transactions]
     }
-
 
 @router.delete("/{transaction_id}", response_model=dict)
 def delete_transaction(
@@ -98,14 +117,18 @@ def delete_transaction(
         current_user: User = Depends(get_current_user)
 ):
     # 1. Tìm giao dịch
-    tx = db.query(Transaction).filter(Transaction.transaction_id == transaction_id,
-                                      Transaction.user_id == current_user.user_id).first()
+    tx = db.query(Transaction).filter(
+        Transaction.transaction_id == transaction_id,
+        Transaction.user_id == current_user.user_id
+    ).first()
+
     if not tx:
         raise HTTPException(status_code=404, detail="Không tìm thấy giao dịch")
 
     # 2. Tìm ví tương ứng
     wallet = db.query(Wallet).filter(Wallet.wallet_id == tx.wallet_id).first()
 
+    # 3. Mở Block Atomic Transaction
     try:
         # ĐẢO NGƯỢC LOGIC: Xóa chi phí -> Cộng lại tiền ví; Xóa thu nhập -> Trừ lại tiền ví
         if wallet:
@@ -114,9 +137,16 @@ def delete_transaction(
             elif tx.transaction_type == TransactionType.income:
                 wallet.balance -= tx.amount
 
+        # Xóa giao dịch khỏi DB
         db.delete(tx)
+
+        # Chốt dữ liệu
         db.commit()
-        return {"status": "success", "message": "Đã xóa giao dịch và hoàn lại tiền ví"}
+        return {
+            "status": "success",
+            "message": "Đã xóa giao dịch và hoàn lại tiền ví thành công"
+        }
     except Exception as e:
+        # Nếu có lỗi trong quá trình trừ tiền/xóa, rollback toàn bộ
         db.rollback()
-        raise HTTPException(status_code=500, detail="Không thể xóa giao dịch")
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: Không thể xóa giao dịch. Error: {str(e)}")

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Download } from 'lucide-react';
+import { Filter, Download, Trash2, Loader2 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -8,10 +8,13 @@ export default function TransactionsList() {
   const [transactions, setTransactions] = useState([]);
   const [walletMap, setWalletMap] = useState({});
   const [categoryMap, setCategoryMap] = useState({});
+  const [categoriesList, setCategoriesList] = useState([]); // Chứa danh sách mảng category để render Dropdown
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
-  // State quản lý bộ lọc (all, income, expense)
+  // State quản lý bộ lọc
   const [filterType, setFilterType] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all'); // State mới cho bộ lọc danh mục
 
   useEffect(() => {
     const fetchData = async () => {
@@ -22,23 +25,32 @@ export default function TransactionsList() {
           axiosClient.get('/transactions?limit=100')
         ]);
 
+        const walletsData = walletsRes.data || walletsRes;
+        const categoriesData = categoriesRes.data || categoriesRes;
+        const txData = txRes.data || txRes;
+
         const wMap = {};
-        walletsRes.data.forEach(w => { wMap[w.wallet_id] = w.name; });
+        walletsData.forEach(w => { wMap[w.wallet_id] = w.name; });
         setWalletMap(wMap);
 
         const cMap = {};
+        const cList = []; // Mảng dùng cho dropdown
         const flattenCategories = (cats) => {
           cats.forEach(c => {
-            cMap[c.category_id] = { name: c.name, icon: c.icon || '📌' };
-            if (c.subcategories && c.subcategories.length > 0) flattenCategories(c.subcategories);
+            cMap[c.category_id] = { name: c.name, icon: c.icon || '📌', type: c.type };
+            cList.push({ id: c.category_id, name: c.name, icon: c.icon || '📌', type: c.type });
+            if (c.subcategories && Array.isArray(c.subcategories)) {
+              flattenCategories(c.subcategories);
+            }
           });
         };
-        flattenCategories(categoriesRes.data);
+        flattenCategories(categoriesData);
         setCategoryMap(cMap);
+        setCategoriesList(cList);
 
-        setTransactions(txRes.data);
+        setTransactions(txData);
       } catch (error) {
-        console.error("Lỗi tải Lịch sử giao dịch:", error);
+        console.error("Lỗi tải dữ liệu giao dịch:", error);
       } finally {
         setIsLoading(false);
       }
@@ -46,99 +58,125 @@ export default function TransactionsList() {
     fetchData();
   }, []);
 
-  // HÀM LỌC: Tính toán mảng giao dịch sau khi lọc
-  const filteredTransactions = transactions.filter(tx => {
-    if (filterType === 'all') return true;
-    return tx.transaction_type === filterType;
-  });
-
-  // HÀM XUẤT FILE CSV
-  const exportToCSV = () => {
-    if (filteredTransactions.length === 0) {
-      alert("Không có dữ liệu để xuất!");
-      return;
-    }
-
-    // 1. Tạo Header cho file CSV
-    const headers = ['Ngay', 'Loai', 'Danh muc', 'Vi tien', 'So tien', 'Ghi chu'];
-
-    // 2. Chuyển đổi dữ liệu JSON thành chuỗi CSV
-    const csvRows = filteredTransactions.map(tx => {
-      const type = tx.transaction_type === 'income' ? 'Thu nhap' : 'Chi phi';
-      const category = categoryMap[tx.category_id]?.name || 'Khac';
-      const wallet = walletMap[tx.wallet_id] || 'Vi an';
-      // Bọc Ghi chú trong dấu ngoặc kép để tránh lỗi nếu người dùng nhập dấu phẩy vào ghi chú
-      const note = `"${tx.note || ''}"`;
-
-      return [tx.date, type, category, wallet, tx.amount, note].join(',');
-    });
-
-    // 3. Ghép Header và Body, thêm BOM (\ufeff) để Excel không bị lỗi font Tiếng Việt
-    const csvContent = "\ufeff" + [headers.join(','), ...csvRows].join('\n');
-
-    // 4. Ép trình duyệt tải file xuống
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Lich_su_giao_dich_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-
-    // Dọn dẹp URL rác
-    URL.revokeObjectURL(url);
+  // Hàm chuyển tab Thu/Chi -> Tự động reset bộ lọc danh mục về "Tất cả"
+  const handleTypeChange = (type) => {
+      setFilterType(type);
+      setFilterCategory('all');
   };
 
-  return (
-    <div className="p-6 lg:p-8 bg-gray-50 min-h-screen pb-20 animate-fade-in">
-      <div className="max-w-4xl mx-auto">
+  // LOGIC LỌC GIAO DỊCH (Kết hợp giữa Type và Category)
+  const filteredTransactions = transactions.filter(tx => {
+    const matchType = filterType === 'all' || tx.transaction_type === filterType;
+    const matchCategory = filterCategory === 'all' || tx.category_id.toString() === filterCategory;
+    return matchType && matchCategory;
+  });
 
-        {/* Header & Nút Xuất File */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl lg:text-3xl font-bold text-slate-800">Lịch sử Giao dịch</h2>
-          <div className="flex gap-3">
-            <button onClick={exportToCSV} className="flex items-center gap-2 bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
-              <Download size={16} /> <span className="hidden sm:inline">Xuất file CSV</span>
-            </button>
+  const handleDelete = async (e, transactionId) => {
+    e.stopPropagation();
+    const isConfirm = window.confirm("Bạn có chắc chắn muốn xóa giao dịch này? Số tiền sẽ được hoàn lại vào ví.");
+    if (!isConfirm) return;
+
+    setDeletingId(transactionId);
+    try {
+      await axiosClient.delete(`/transactions/${transactionId}`);
+      setTransactions(prev => prev.filter(tx => tx.transaction_id !== transactionId));
+    } catch (error) {
+      alert("Lỗi khi xóa giao dịch: " + (error.response?.data?.detail || "Vui lòng thử lại"));
+      console.error(error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64 text-indigo-600">
+        <Loader2 className="animate-spin" size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-50 min-h-screen pb-20 lg:p-8 animate-fade-in">
+      <div className="max-w-4xl mx-auto space-y-6">
+
+        {/* Header & Filter */}
+        <div className="bg-white p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Lịch sử giao dịch</h2>
+            <p className="text-sm text-gray-500 mt-1">Quản lý các khoản thu chi của bạn</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto items-start sm:items-center">
+
+            {/* Lọc theo Loại (Thu/Chi) - Có ẩn thanh cuộn nếu xem trên màn hình siêu nhỏ */}
+            <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+                <button onClick={() => handleTypeChange('all')} className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filterType === 'all' ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Tất cả</button>
+                <button onClick={() => handleTypeChange('expense')} className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filterType === 'expense' ? 'bg-rose-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Chi phí</button>
+                <button onClick={() => handleTypeChange('income')} className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filterType === 'income' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Thu nhập</button>
+            </div>
+
+            {/* Lọc theo Danh mục */}
+            <div className="flex items-center gap-2 w-full sm:w-auto min-w-[180px] max-w-xs">
+                <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Filter size={16} />
+                </div>
+                <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="flex-1 bg-gray-50 border border-gray-200 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 font-medium cursor-pointer truncate"
+                >
+                    <option value="all">Mọi danh mục</option>
+                    {categoriesList
+                        .filter(c => filterType === 'all' || c.type === filterType)
+                        .map(c => (
+                            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                        ))
+                    }
+                </select>
+            </div>
           </div>
         </div>
 
-        {/* Tab Lọc (Tất cả / Thu / Chi) */}
-        <div className="flex bg-gray-200/60 p-1.5 rounded-xl mb-6 max-w-sm">
-          <button onClick={() => setFilterType('all')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${filterType === 'all' ? 'bg-white shadow-sm text-slate-800' : 'text-gray-500 hover:text-slate-700'}`}>Tất cả</button>
-          <button onClick={() => setFilterType('income')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${filterType === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500 hover:text-slate-700'}`}>Thu nhập</button>
-          <button onClick={() => setFilterType('expense')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${filterType === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-gray-500 hover:text-slate-700'}`}>Chi phí</button>
-        </div>
-
-        {isLoading ? (
-          <div className="text-center py-10 text-gray-500">Đang tải dữ liệu...</div>
-        ) : (
-          <div className="space-y-3">
+        {/* Transaction List */}
+        <div className="space-y-3">
             {filteredTransactions.length === 0 ? (
-               <div className="text-center py-10 bg-white rounded-2xl border border-gray-100 text-gray-500">Không tìm thấy giao dịch nào phù hợp.</div>
+              <div className="text-center py-10 text-gray-500 bg-white rounded-2xl border border-gray-100">Không tìm thấy giao dịch nào phù hợp.</div>
             ) : (
               filteredTransactions.map(tx => {
                 const isIncome = tx.transaction_type === 'income';
                 const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓' };
                 const walletName = walletMap[tx.wallet_id] || 'Ví ẩn';
+                const isDeletingThis = deletingId === tx.transaction_id;
 
                 return (
-                  <div key={tx.transaction_id} className="flex items-center justify-between p-4 lg:p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer">
+                  <div key={tx.transaction_id} className={`flex items-center justify-between p-4 lg:p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer ${isDeletingThis ? 'opacity-50 pointer-events-none' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-gray-50 flex items-center justify-center text-xl lg:text-2xl border border-gray-100">{catInfo.icon}</div>
                       <div>
                         <p className="font-semibold text-slate-800 lg:text-lg">{catInfo.name}</p>
                         <p className="text-xs lg:text-sm text-gray-500 mt-0.5">{walletName} • {tx.date}</p>
+                        {tx.note && <p className="text-xs text-gray-400 mt-1 italic">"{tx.note}"</p>}
                       </div>
                     </div>
-                    <div className={`font-semibold lg:text-lg ${isIncome ? 'text-emerald-600' : 'text-slate-800'}`}>
-                      {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                    <div className="flex items-center gap-4">
+                        <div className={`font-semibold text-right lg:text-lg ${isIncome ? 'text-emerald-600' : 'text-slate-800'}`}>
+                        {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                        </div>
+                        <button
+                            onClick={(e) => handleDelete(e, tx.transaction_id)}
+                            disabled={isDeletingThis}
+                            className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex-shrink-0"
+                            title="Xóa giao dịch"
+                        >
+                            {isDeletingThis ? <Loader2 size={20} className="animate-spin text-rose-500" /> : <Trash2 size={20} />}
+                        </button>
                     </div>
                   </div>
                 );
               })
             )}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
