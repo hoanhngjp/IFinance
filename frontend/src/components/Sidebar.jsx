@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, PieChart, MessageSquare, User, Landmark, Briefcase, Repeat, Target } from 'lucide-react';
+import { Home, PieChart, MessageSquare, User, Landmark, Briefcase, Repeat, Target, Wallet } from 'lucide-react';
 
 const menuItems = [
   { to: '/', icon: Home, label: 'Trang chủ' },
   { to: '/transactions', icon: PieChart, label: 'Giao dịch' },
+  { to: '/wallets', icon: Wallet, label: 'Ví tiền' }, // <-- Thêm dòng này
   { to: '/debts', icon: Landmark, label: 'Sổ Nợ' },
   { to: '/budgets', icon: Target, label: 'Ngân sách' },
   { to: '/investments', icon: Briefcase, label: 'Đầu tư' },
@@ -41,10 +42,7 @@ export default function Sidebar() {
       </div>
 
       <div className="p-4 border-t border-gray-100">
-        <Link to="/profile" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${location.pathname === '/profile' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-indigo-600'}`}>
-          <User size={20} />
-          <span>Tài khoản</span>
-        </Link>
+         {/* Ở đây bạn có thể thêm nút Đăng xuất hoặc Profile */}
       </div>
     </div>
   );

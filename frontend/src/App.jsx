@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Outlet } from 'react-router-dom';
 import { PlusCircle } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 
 // Import Components Layout
 import Sidebar from './components/Sidebar';
@@ -18,6 +19,7 @@ import Subscriptions from './pages/Subscriptions/Subscriptions';
 import AIChat from './pages/AIChat/AIChat';
 import Profile from './pages/Profile/Profile';
 import Budgets from './pages/Budgets/Budgets';
+import Wallets from './pages/Wallets/Wallets';
 
 // Component phụ cho Header trên Desktop
 function DesktopHeader() {
@@ -27,27 +29,25 @@ function DesktopHeader() {
 
   return (
     <div className="hidden lg:flex justify-end items-center px-8 py-4 bg-white/50 backdrop-blur-sm border-b border-gray-100 z-10 absolute top-0 w-full">
-      <Link to="/add" className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
-        <PlusCircle size={20} /> Thêm giao dịch
+      <Link to="/add" className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-700 flex items-center gap-2 text-sm">
+        <PlusCircle size={18} /> Thêm giao dịch
       </Link>
     </div>
   );
 }
 
-// ==========================================
-// TẠO LAYOUT CHÍNH: Chứa Sidebar và BottomNav
-// ==========================================
 function MainLayout() {
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-slate-800 overflow-hidden">
-
+    <div className="flex h-screen bg-gray-50 font-sans text-slate-800">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col relative w-full lg:max-w-none">
+      {/* Cột chính hiển thị nội dung */}
+      <div className="flex-1 flex flex-col w-full lg:w-auto relative">
         <DesktopHeader />
 
+        {/* Nội dung trang thay đổi ở đây */}
         <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
-          {/* <Outlet /> chính là nơi React Router sẽ render các trang con (Dashboard, Transactions...) vào đây */}
+          {/* <Outlet /> chính là nơi React Router sẽ render các trang con vào đây */}
           <Outlet />
         </div>
 
@@ -59,31 +59,48 @@ function MainLayout() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* ==========================================
-            NHÓM 1: AUTH ROUTES (KHÔNG CÓ SIDEBAR)
-            ========================================== */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+    <>
+      {/* KHAI BÁO TOASTER Ở ĐÂY ĐỂ HIỂN THỊ THÔNG BÁO TRÊN TOÀN APP */}
+      <Toaster
+        position="top-right"
+        reverseOrder={false}
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: '12px',
+            background: '#333',
+            color: '#fff',
+          },
+        }}
+      />
+
+      <BrowserRouter>
+        <Routes>
+          {/* ==========================================
+              NHÓM 1: AUTH ROUTES (KHÔNG CÓ SIDEBAR)
+              ========================================== */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
 
-        {/* ==========================================
-            NHÓM 2: MAIN ROUTES (BỌC TRONG LAYOUT CÓ SIDEBAR)
-            ========================================== */}
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/transactions" element={<TransactionsList />} />
-          <Route path="/add" element={<AddTransaction />} />
-          <Route path="/debts" element={<Debts />} />
-          <Route path="/investments" element={<Investments />} />
-          <Route path="/subs" element={<Subscriptions />} />
-          <Route path="/ai-chat" element={<AIChat />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/budgets" element={<Budgets />} />
-        </Route>
+          {/* ==========================================
+              NHÓM 2: MAIN ROUTES (BỌC TRONG LAYOUT CÓ SIDEBAR)
+              ========================================== */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/transactions" element={<TransactionsList />} />
+            <Route path="/add" element={<AddTransaction />} />
+            <Route path="/debts" element={<Debts />} />
+            <Route path="/investments" element={<Investments />} />
+            <Route path="/subs" element={<Subscriptions />} />
+            <Route path="/ai-chat" element={<AIChat />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/budgets" element={<Budgets />} />
+            <Route path="/wallets" element={<Wallets />} />
+          </Route>
 
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 }

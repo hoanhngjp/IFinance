@@ -9,7 +9,7 @@ from app.models.wallet_category import Wallet, Category
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.enums import TransactionType
-from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionListResponse
+from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionListResponse, TransactionTransfer
 from app.api.deps import get_current_user
 
 router = APIRouter()
@@ -150,3 +150,82 @@ def delete_transaction(
         # Nếu có lỗi trong quá trình trừ tiền/xóa, rollback toàn bộ
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: Không thể xóa giao dịch. Error: {str(e)}")
+
+
+@router.post("/transfer", response_model=dict)
+def transfer_money(
+        transfer_in: TransactionTransfer,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    # 1. Kiểm tra logic cơ bản
+    if transfer_in.source_wallet_id == transfer_in.dest_wallet_id:
+        raise HTTPException(status_code=400, detail="Không thể chuyển tiền cho cùng một ví")
+
+    # 2. Tìm hai ví và đảm bảo nó thuộc về user này
+    source_wallet = db.query(Wallet).filter(
+        Wallet.wallet_id == transfer_in.source_wallet_id,
+        Wallet.user_id == current_user.user_id
+    ).first()
+
+    dest_wallet = db.query(Wallet).filter(
+        Wallet.wallet_id == transfer_in.dest_wallet_id,
+        Wallet.user_id == current_user.user_id
+    ).first()
+
+    if not source_wallet or not dest_wallet:
+        raise HTTPException(status_code=404, detail="Không tìm thấy ví nguồn hoặc ví đích")
+
+    # 3. Kiểm tra số dư ví nguồn
+    if source_wallet.balance < transfer_in.amount:
+        raise HTTPException(status_code=400, detail="Ví nguồn không đủ số dư để thực hiện chuyển tiền")
+
+    # ==========================================
+    # BLOCK ATOMIC TRANSACTION (Đảm bảo an toàn dữ liệu)
+    # ==========================================
+    try:
+        # A. Cập nhật số dư hai ví
+        source_wallet.balance -= transfer_in.amount
+        dest_wallet.balance += transfer_in.amount
+
+        # B. Ghi lại 2 giao dịch lịch sử (để sau này filter thu/chi còn thấy được)
+        # Giả sử category_id để None (hoặc bạn có thể tạo 1 Category "Chuyển tiền" riêng)
+        tx_out = Transaction(
+            user_id=current_user.user_id,
+            wallet_id=source_wallet.wallet_id,
+            category_id=17,
+            amount=transfer_in.amount,
+            transaction_type=TransactionType.expense,
+            note=f"{transfer_in.note} (Tới: {dest_wallet.name})",
+            date=transfer_in.date
+        )
+
+        tx_in = Transaction(
+            user_id=current_user.user_id,
+            wallet_id=dest_wallet.wallet_id,
+            category_id=18,
+            amount=transfer_in.amount,
+            transaction_type=TransactionType.income,
+            note=f"{transfer_in.note} (Từ: {source_wallet.name})",
+            date=transfer_in.date
+        )
+
+        db.add(tx_out)
+        db.add(tx_in)
+
+        # C. Chốt tất cả lại, nếu mọi thứ từ A -> B đều trơn tru
+        db.commit()
+        db.refresh(tx_out)
+        db.refresh(tx_in)
+
+        return {
+            "status": "success",
+            "message": "Chuyển tiền thành công",
+            "data": {
+                "transaction_ids": [tx_out.transaction_id, tx_in.transaction_id]
+            }
+        }
+    except Exception as e:
+        # Nếu có bất kỳ lỗi gì, hủy toàn bộ thay đổi (Tiền và Giao dịch không được lưu)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
