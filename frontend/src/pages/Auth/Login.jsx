@@ -84,7 +84,7 @@ export default function Login() {
             </div>
             <div className="relative">
               <Lock size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              <input type="password" autocomplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
                 placeholder="••••••••" />
             </div>
