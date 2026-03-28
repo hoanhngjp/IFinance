@@ -131,3 +131,35 @@ def repay_debt(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+
+@router.get("/{debt_id}/repayments", response_model=dict)
+def get_debt_repayments(
+    debt_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Kiểm tra xem khoản nợ có thuộc quyền sở hữu của user không
+    debt = db.query(Debt).filter(Debt.debt_id == debt_id, Debt.user_id == current_user.user_id).first()
+    if not debt:
+        raise HTTPException(status_code=404, detail="Không tìm thấy khoản nợ")
+
+    # Lấy danh sách lịch sử trả nợ, JOIN với bảng Transaction để lấy thêm thông tin ví
+    repayments = db.query(
+        DebtRepayment.repayment_id,
+        DebtRepayment.amount,
+        DebtRepayment.date,
+        Transaction.note
+    ).join(Transaction, DebtRepayment.transaction_id == Transaction.transaction_id)\
+     .filter(DebtRepayment.debt_id == debt_id)\
+     .order_by(DebtRepayment.date.desc()).all()
+
+    # Format lại dữ liệu trả về
+    history = [
+        {"repayment_id": r.repayment_id, "amount": float(r.amount), "date": r.date, "note": r.note}
+        for r in repayments
+    ]
+
+    return {
+        "status": "success",
+        "data": history
+    }
