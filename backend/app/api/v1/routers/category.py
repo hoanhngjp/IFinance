@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.models.wallet_category import Category
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryResponse, CategoryTreeResponse
+from app.models.transaction import Transaction
 from app.api.deps import get_current_user
 
 router = APIRouter()
@@ -60,3 +61,46 @@ def get_categories(
         "status": "success",
         "data": [CategoryTreeResponse.model_validate(cat) for cat in root_categories]
     }
+
+
+@router.delete("/{category_id}", response_model=dict)
+def delete_category(
+        category_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    # 1. Tìm danh mục (Chỉ tìm những danh mục do chính user này tạo ra)
+    category = db.query(Category).filter(
+        Category.category_id == category_id,
+        Category.user_id == current_user.user_id  # Đảm bảo không xóa nhầm danh mục hệ thống (user_id = None)
+    ).first()
+
+    if not category:
+        raise HTTPException(status_code=404,
+                            detail="Không tìm thấy danh mục hoặc bạn không có quyền xóa danh mục hệ thống.")
+
+    # 2. Kiểm tra Khóa ngoại (Xem có giao dịch nào đang xài danh mục này không)
+    # Bao gồm cả việc kiểm tra xem nó có đang là danh mục cha của các danh mục con khác không
+
+    # Ktra danh mục con
+    has_children = db.query(Category).filter(Category.parent_id == category_id).count()
+    if has_children > 0:
+        raise HTTPException(status_code=400, detail="Không thể xóa vì đang có danh mục con trực thuộc.")
+
+    # Ktra giao dịch
+    has_transactions = db.query(Transaction).filter(Transaction.category_id == category_id).count()
+    if has_transactions > 0:
+        raise HTTPException(status_code=400,
+                            detail="Danh mục này đã phát sinh giao dịch. Không thể xóa để bảo toàn dữ liệu!")
+
+    # 3. An toàn để xóa
+    try:
+        db.delete(category)
+        db.commit()
+        return {
+            "status": "success",
+            "message": "Đã xóa danh mục thành công"
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, PieChart, MessageSquare, User, Landmark, Briefcase, Repeat, Target, Wallet } from 'lucide-react';
+import { Home, PieChart, MessageSquare, User, Landmark, Briefcase, Repeat, Target, Wallet, LayoutGrid } from 'lucide-react';
 
 const menuItems = [
   { to: '/', icon: Home, label: 'Trang chủ' },
@@ -11,6 +11,7 @@ const menuItems = [
   { to: '/investments', icon: Briefcase, label: 'Đầu tư' },
   { to: '/subs', icon: Repeat, label: 'Đăng ký định kỳ' },
   { to: '/ai-chat', icon: MessageSquare, label: 'Trợ lý AI' },
+  { to: '/categories', icon: LayoutGrid, label: 'Danh mục' },
 ];
 
 export default function Sidebar() {

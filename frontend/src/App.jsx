@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Outlet } from 'react-router-dom';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
 // Import Components Layout
@@ -20,6 +20,7 @@ import AIChat from './pages/AIChat/AIChat';
 import Profile from './pages/Profile/Profile';
 import Budgets from './pages/Budgets/Budgets';
 import Wallets from './pages/Wallets/Wallets';
+import Categories from './pages/Categories/Categories';
 
 // Component phụ cho Header trên Desktop
 function DesktopHeader() {
@@ -97,6 +98,7 @@ export default function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/budgets" element={<Budgets />} />
             <Route path="/wallets" element={<Wallets />} />
+            <Route path="/categories" element={<Categories />} />
           </Route>
 
         </Routes>
