@@ -79,6 +79,7 @@ class Budget(Base):
     category_id = Column(Integer, ForeignKey("categories.category_id"), nullable=False)
     amount_limit = Column(Numeric(15, 2), nullable=False)
     period = Column(SQLEnum(BudgetPeriod), nullable=False)
+    is_rollover = Column(Boolean, default=False)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
 

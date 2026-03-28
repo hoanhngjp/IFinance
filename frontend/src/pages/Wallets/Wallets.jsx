@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Wallet, Landmark, CreditCard, Activity, Plus, ArrowRightLeft, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axiosClient from '../../api/axiosClient';
+import CurrencyInput from '../../components/CurrencyInput'
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
@@ -218,12 +219,12 @@ export default function Wallets() {
               {/* Số tiền */}
               <div>
                 <label className="text-sm font-medium text-gray-600 block mb-1.5">Số tiền chuyển</label>
-                <input
-                    type="number"
-                    required min="1000"
+
+                <CurrencyInput
+                    required
                     value={transferData.amount}
                     onChange={(e) => setTransferData({...transferData, amount: e.target.value})}
-                    placeholder="VD: 500000"
+                    placeholder="VD: 500.000"
                     className="w-full border-b-2 border-gray-200 py-2 text-2xl font-bold focus:outline-none focus:border-emerald-500 transition-colors text-slate-800"
                 />
               </div>

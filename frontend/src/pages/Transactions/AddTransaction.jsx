@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mic, Camera, Keyboard, ArrowLeft, MessageSquare, Sparkles, UploadCloud, X, ImageIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import CurrencyInput from '../../components/CurrencyInput'
 
 export default function AddTransaction() {
   const navigate = useNavigate();
@@ -228,7 +229,11 @@ export default function AddTransaction() {
 
                <div>
                  <label className="text-sm font-medium text-gray-600">Số tiền</label>
-                 <input type="number" required min="1000" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} placeholder="Nhập số tiền..." className="w-full border-b-2 border-gray-200 py-2 text-2xl font-bold focus:outline-none focus:border-indigo-600 transition-colors text-slate-800" />
+                 <CurrencyInput
+                    required
+                    value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                    placeholder="Nhập số tiền..."
+                    className="w-full border-b-2 border-gray-200 py-2 text-2xl font-bold focus:outline-none focus:border-indigo-600 transition-colors text-slate-800" />
                </div>
 
                <div className="grid grid-cols-2 gap-4">

@@ -9,6 +9,7 @@ class BudgetCreate(BaseModel):
     category_id: int
     amount_limit: Decimal = Field(..., gt=0, description="Hạn mức chi tiêu")
     period: BudgetPeriod
+    is_rollover: bool = False
     start_date: date
     end_date: date
 
