@@ -65,7 +65,7 @@ class Subscription(Base):
     amount = Column(Numeric(15, 2), nullable=False)
     frequency = Column(SQLEnum(FrequencyType), nullable=False)
     next_due_date = Column(Date, nullable=True)
-
+    is_active = Column(Boolean, default=True)
     user = relationship("User", back_populates="subscriptions")
     default_wallet = relationship("Wallet", back_populates="subscriptions")
     category = relationship("Category", back_populates="subscriptions")

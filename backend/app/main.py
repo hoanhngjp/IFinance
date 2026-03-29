@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.routers import auth, wallet, category, transaction, debt, budget, ai
+from app.api.v1.routers import auth, wallet, category, transaction, debt, budget, ai, subscription
 
 app = FastAPI(
     title="IFinance API",
@@ -24,6 +24,7 @@ app.include_router(transaction.router, prefix="/api/v1/transactions", tags=["Tra
 app.include_router(debt.router, prefix="/api/v1/debts", tags=["Debts"])
 app.include_router(budget.router, prefix="/api/v1/budgets", tags=["Budgets"])
 app.include_router(ai.router, prefix="/api/v1/ai", tags=["AI Processing"])
+app.include_router(subscription.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
 
 
 @app.get("/")
