@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, X, Loader2, Sparkles, Trash2, Power, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Calendar, Plus, X, Loader2, Sparkles, Trash2, Power, RefreshCw, CheckCircle2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axiosClient from '../../api/axiosClient';
 import CurrencyInput from '../../components/CurrencyInput';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
-// Hàm bóc tách dữ liệu an toàn tương thích với interceptor của bạn
 const extractData = (res) => {
     if (res && Array.isArray(res.data)) return res.data;
     if (Array.isArray(res)) return res;
@@ -22,14 +21,17 @@ export default function Subscriptions() {
   // States cho Modal & Form
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
+  const [editingId, setEditingId] = useState(null); // NULL = Thêm mới, có ID = Cập nhật
+
+  const defaultForm = {
     name: '',
     amount: '',
     frequency: 'monthly',
     default_wallet_id: '',
     category_id: '',
     next_due_date: new Date().toISOString().split('T')[0]
-  });
+  };
+  const [formData, setFormData] = useState(defaultForm);
 
   // States cho AI Suggestion
   const [aiSuggestions, setAiSuggestions] = useState([]);
@@ -42,8 +44,6 @@ export default function Subscriptions() {
         axiosClient.get('/wallets/'),
         axiosClient.get('/categories/')
       ]);
-
-      // Áp dụng hàm bóc tách an toàn để chống lỗi
       setSubs(extractData(subsRes));
       setWallets(extractData(walletsRes));
       setCategories(extractData(catsRes));
@@ -58,14 +58,12 @@ export default function Subscriptions() {
     fetchData();
   }, []);
 
-  // Gọi API AI Detect
   const handleDetectAI = async () => {
     setIsDetectingAI(true);
     setAiSuggestions([]);
     try {
       const res = await axiosClient.get('/subscriptions/detect/ai');
-      const data = extractData(res); // Bóc tách an toàn
-
+      const data = extractData(res);
       setAiSuggestions(data);
       if (data.length === 0) toast.success("AI: Chưa phát hiện khoản chi định kỳ nào mới.");
     } catch (error) {
@@ -75,18 +73,39 @@ export default function Subscriptions() {
     }
   };
 
-  // Áp dụng gợi ý của AI vào Form
   const applySuggestion = (suggestion) => {
     setFormData({
-      ...formData,
+      ...defaultForm,
       name: `Gói ${suggestion.category_name} (AI gợi ý)`,
       amount: suggestion.suggested_amount,
       category_id: suggestion.category_id,
       next_due_date: new Date().toISOString().split('T')[0]
     });
-    setAiSuggestions([]); // Đóng gợi ý
+    setEditingId(null);
+    setAiSuggestions([]);
     setIsModalOpen(true);
   };
+
+  // MỞ MODAL ĐỂ SỬA
+  const openEditModal = (sub) => {
+      setFormData({
+          name: sub.name,
+          amount: sub.amount,
+          frequency: sub.frequency,
+          default_wallet_id: sub.default_wallet_id,
+          category_id: sub.category_id,
+          next_due_date: sub.next_due_date
+      });
+      setEditingId(sub.subscription_id);
+      setIsModalOpen(true);
+  };
+
+  // ĐÓNG MODAL VÀ RESET TRẠNG THÁI
+  const closeModal = () => {
+      setIsModalOpen(false);
+      setFormData(defaultForm);
+      setEditingId(null);
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -99,18 +118,23 @@ export default function Subscriptions() {
         category_id: Number(formData.category_id)
     };
 
-    const promise = axiosClient.post('/subscriptions/', payload);
+    let promise;
+    // Tự động phân luồng: Gọi PUT nếu đang sửa, gọi POST nếu thêm mới
+    if (editingId) {
+        promise = axiosClient.put(`/subscriptions/${editingId}`, payload);
+    } else {
+        promise = axiosClient.post('/subscriptions/', payload);
+    }
 
     toast.promise(promise, {
-      loading: 'Đang lưu gói đăng ký...',
-      success: 'Đã thêm đăng ký định kỳ! 🔄',
-      error: 'Không thể thêm gói đăng ký'
+      loading: 'Đang lưu dữ liệu...',
+      success: editingId ? 'Đã cập nhật gói thành công! ✏️' : 'Đã thêm đăng ký định kỳ! 🔄',
+      error: 'Lỗi khi lưu dữ liệu'
     });
 
     try {
       await promise;
-      setIsModalOpen(false);
-      setFormData({ name: '', amount: '', frequency: 'monthly', default_wallet_id: '', category_id: '', next_due_date: new Date().toISOString().split('T')[0] });
+      closeModal();
       fetchData();
     } catch (error) {} finally { setIsSubmitting(false); }
   };
@@ -157,7 +181,7 @@ export default function Subscriptions() {
               >
                 {isDetectingAI ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} <span className="hidden sm:inline">AI Quét</span>
               </button>
-              <button onClick={() => setIsModalOpen(true)} className="flex-1 lg:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-sm">
+              <button onClick={() => { setFormData(defaultForm); setEditingId(null); setIsModalOpen(true); }} className="flex-1 lg:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-sm">
                 <Plus size={20} /> <span className="hidden sm:inline">Thêm mới</span>
               </button>
           </div>
@@ -199,7 +223,7 @@ export default function Subscriptions() {
                           {categories.find(c => c.category_id === sub.category_id)?.icon || '🔄'}
                       </div>
                       <div>
-                        <h3 className={`font-bold text-lg ${sub.is_active ? 'text-slate-800' : 'text-gray-500 line-through'}`}>{sub.name}</h3>
+                        <h3 className={`font-bold text-lg truncate w-32 ${sub.is_active ? 'text-slate-800' : 'text-gray-500 line-through'}`} title={sub.name}>{sub.name}</h3>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{sub.frequency === 'monthly' ? 'Hàng tháng' : 'Hàng năm'}</p>
                       </div>
                     </div>
@@ -218,15 +242,20 @@ export default function Subscriptions() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         {/* Nút Toggle Bật/Tắt */}
-                        <label className="relative inline-flex items-center cursor-pointer" title={sub.is_active ? 'Tạm dừng gói' : 'Kích hoạt lại'}>
+                        <label className="relative inline-flex items-center cursor-pointer mr-1" title={sub.is_active ? 'Tạm dừng gói' : 'Kích hoạt lại'}>
                             <input type="checkbox" className="sr-only peer" checked={sub.is_active} onChange={() => handleToggleActive(sub.subscription_id, sub.is_active)} />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                         </label>
 
+                        {/* Nút Sửa */}
+                        <button onClick={() => openEditModal(sub)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors bg-gray-50 rounded-lg hover:bg-indigo-50" title="Chỉnh sửa thông tin">
+                            <Edit size={16} />
+                        </button>
+
                         {/* Nút Xóa */}
-                        <button onClick={() => handleDelete(sub.subscription_id, sub.name)} className="p-1.5 text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 rounded-lg hover:bg-rose-50 ml-1">
+                        <button onClick={() => handleDelete(sub.subscription_id, sub.name)} className="p-1.5 text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 rounded-lg hover:bg-rose-50" title="Hủy gói định kỳ">
                             <Trash2 size={16} />
                         </button>
                     </div>
@@ -237,13 +266,13 @@ export default function Subscriptions() {
         )}
       </div>
 
-      {/* MODAL THÊM MỚI */}
+      {/* MODAL THÊM/SỬA MỚI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h3 className="font-bold text-xl text-slate-800">Thêm gói định kỳ</h3>
-                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-rose-500 bg-gray-50 p-2 rounded-full"><X size={20} /></button>
+                <h3 className="font-bold text-xl text-slate-800">{editingId ? 'Sửa gói định kỳ' : 'Thêm gói định kỳ'}</h3>
+                <button onClick={closeModal} className="text-gray-400 hover:text-rose-500 bg-gray-50 p-2 rounded-full"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
@@ -287,7 +316,7 @@ export default function Subscriptions() {
               </div>
 
               <button disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex justify-center items-center gap-2 mt-2">
-                {isSubmitting ? <Loader2 className="animate-spin" /> : 'Lưu Gói Đăng Ký'}
+                {isSubmitting ? <Loader2 className="animate-spin" /> : (editingId ? 'Cập nhật thay đổi' : 'Lưu Gói Đăng Ký')}
               </button>
             </form>
           </div>

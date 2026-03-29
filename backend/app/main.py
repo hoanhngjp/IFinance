@@ -1,10 +1,36 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.services.subscription_worker import process_due_subscriptions
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routers import auth, wallet, category, transaction, debt, budget, ai, subscription
+
+# --- KHỞI TẠO SCHEDULER CHẠY NGẦM ---
+scheduler = BackgroundScheduler()
+# Để Test
+#scheduler.add_job(process_due_subscriptions, 'interval', minutes=1)
+scheduler.add_job(process_due_subscriptions, 'cron', hour=0, minute=1)
+
+
+# --- KHAI BÁO LIFESPAN ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. PHẦN STARTUP (Khởi động Server)
+    scheduler.start()
+    print("⏳ [APScheduler] Đã khởi động Background Worker!")
+
+    process_due_subscriptions()
+
+    yield  # <--- Ứng dụng FastAPI sẽ chạy và phục vụ người dùng ở điểm này
+
+    # 2. PHẦN SHUTDOWN (Khi tắt Server bằng Ctrl+C)
+    scheduler.shutdown()
+    print("🛑 [APScheduler] Đã tắt Background Worker!")
 
 app = FastAPI(
     title="IFinance API",
     description="API cho hệ thống quản lý tài chính cá nhân",
+    lifespan=lifespan,
     version="1.0.0"
 )
 
