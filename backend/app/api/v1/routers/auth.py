@@ -5,7 +5,7 @@ from jose import jwt, JWTError
 
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, Token, RefreshTokenRequest
+from app.schemas.user import UserCreate, UserResponse, Token, RefreshTokenRequest, LogoutRequest
 from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token, SECRET_KEY, \
     ALGORITHM
 from app.api.deps import get_current_user
@@ -90,4 +90,20 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     return {
         "status": "success",
         "data": UserResponse.model_validate(current_user)
+    }
+
+
+@router.post("/logout", response_model=dict)
+def logout(request: LogoutRequest, current_user: User = Depends(get_current_user)):
+    """
+    API Đăng xuất:
+    Trong hệ thống JWT Stateless thực tế, khi user gọi logout, ta sẽ đưa
+    request.refresh_token vào một bảng Blacklist (hoặc Redis) để token này
+    không thể dùng để lấy access_token mới được nữa.
+    """
+    # TODO: Thêm logic lưu request.refresh_token vào bảng Blacklist (nếu có)
+
+    return {
+        "status": "success",
+        "message": "Đăng xuất thành công"
     }
