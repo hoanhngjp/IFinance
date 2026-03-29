@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from app.models.enums import TransactionType
 
@@ -12,6 +12,12 @@ class TransactionBase(BaseModel):
     transaction_type: TransactionType
     note: Optional[str] = None
     ocr_data: Optional[Dict[str, Any]] = None
+    @field_validator('date', mode='before')
+    @classmethod
+    def parse_datetime_to_date(cls, v):
+        if isinstance(v, datetime):
+            return v.date()
+        return v
 
 class TransactionCreate(TransactionBase):
     pass

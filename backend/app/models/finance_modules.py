@@ -48,8 +48,8 @@ class Investment(Base):
     type = Column(SQLEnum(InvestmentType), nullable=False)
     principal_amount = Column(Numeric(15, 2), nullable=False)
     current_value = Column(Numeric(15, 2), nullable=True)
+    total_passive_income = Column(Numeric(15, 2), default=0)
     start_date = Column(Date, nullable=True)
-
     user = relationship("User", back_populates="investments")
     wallet = relationship("Wallet", back_populates="investments")
 
