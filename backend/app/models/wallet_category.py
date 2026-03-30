@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, Enum as SQLEnum, Boolean
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 from app.models.enums import WalletType, CategoryType
@@ -13,6 +13,8 @@ class Wallet(Base):
     type = Column(SQLEnum(WalletType), nullable=False)
     balance = Column(Numeric(15, 2), default=0)  # Derived column
     currency = Column(String(10), default="VND")
+    is_active = Column(Boolean, default=True)
+    credit_limit = Column(Numeric(15, 2), default=0)
 
     user = relationship("User", back_populates="wallets")
     transactions = relationship("Transaction", back_populates="wallet")
