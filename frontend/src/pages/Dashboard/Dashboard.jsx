@@ -23,10 +23,10 @@ export default function Dashboard() {
   const [categoryMap, setCategoryMap] = useState({});
 
   // States Tương tác (Filters)
-  const [timeRange, setTimeRange] = useState('this_month'); // 7_days, this_month, last_month, 3_months, all_time, custom
-  const [activeCard, setActiveCard] = useState('expense');  // balance, income, expense
+  const [timeRange, setTimeRange] = useState('3_months'); // Đổi mặc định sang 3 tháng để luôn thấy dữ liệu
+  const [activeCard, setActiveCard] = useState('expense');
 
-  // State cho Tùy chỉnh thời gian (Mặc định là 7 ngày qua cho đến hôm nay)
+  // State cho Tùy chỉnh thời gian
   const [customStartDate, setCustomStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -34,29 +34,37 @@ export default function Dashboard() {
   });
   const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-  // 1. GỌI API 1 LẦN DUY NHẤT LÚC MỚI VÀO TRANG
+  // 1. GỌI API 1 LẦN DUY NHẤT
   useEffect(() => {
     const fetchRawData = async () => {
       try {
         const [walletsRes, categoriesRes, txRes] = await Promise.all([
           axiosClient.get('/wallets/'),
           axiosClient.get('/categories/'),
-          axiosClient.get('/transactions/?limit=2000')
+          axiosClient.get('/transactions/?page=1&size=2000')
         ]);
 
-        const extractArray = (res) => (res && Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : []));
+        const walletsData = walletsRes.data || walletsRes || [];
+        setRawWallets(Array.isArray(walletsData) ? walletsData : []);
 
-        setRawWallets(extractArray(walletsRes));
-        setRawTxs(extractArray(txRes));
+        let txData = [];
+        if (txRes?.data?.items) txData = txRes.data.items;
+        else if (txRes?.items) txData = txRes.items;
+        else if (Array.isArray(txRes?.data)) txData = txRes.data;
+        else if (Array.isArray(txRes)) txData = txRes;
 
+        setRawTxs(txData);
+
+        const categoriesData = categoriesRes.data || categoriesRes || [];
         const cMap = {};
         const flattenCategories = (cats) => {
+          if (!Array.isArray(cats)) return;
           cats.forEach(c => {
             cMap[c.category_id] = { name: c.name, icon: c.icon || '📌' };
             if (c.subcategories && Array.isArray(c.subcategories)) flattenCategories(c.subcategories);
           });
         };
-        flattenCategories(extractArray(categoriesRes));
+        flattenCategories(categoriesData);
         setCategoryMap(cMap);
 
       } catch (error) {
@@ -68,37 +76,45 @@ export default function Dashboard() {
     fetchRawData();
   }, []);
 
-  // 2. XỬ LÝ DỮ LIỆU ĐỘNG (Tự chạy lại mỗi khi đổi Filter hoặc bấm Thẻ)
+  // 2. XỬ LÝ DỮ LIỆU ĐỘNG (FIX LỖI MÚI GIỜ)
   const dashboardData = useMemo(() => {
     if (!rawTxs && !rawWallets) return null;
 
     const now = new Date();
-    let startDate = new Date();
-    let endDate = new Date(); // Mặc định endDate là hiện tại
+    // Khóa cứng endDate ở 23:59:59 của ngày hiện tại
+    let endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    // Khóa cứng startDate ở 00:00:00 của ngày hiện tại
+    let startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
 
-    // Xử lý bộ lọc thời gian
-    if (timeRange === '7_days') startDate.setDate(now.getDate() - 7);
-    else if (timeRange === 'this_month') startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    else if (timeRange === 'last_month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0); // Ngày cuối của tháng trước
-    }
-    else if (timeRange === '3_months') startDate.setMonth(now.getMonth() - 3);
-    else if (timeRange === 'custom') {
-        startDate = new Date(customStartDate);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(customEndDate);
-        endDate.setHours(23, 59, 59, 999);
+    // Xử lý bộ lọc thời gian an toàn
+    if (timeRange === '7_days') {
+        startDate.setDate(endDate.getDate() - 7);
+    } else if (timeRange === 'this_month') {
+        startDate.setDate(1);
+    } else if (timeRange === 'last_month') {
+        startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 1, 1, 0, 0, 0);
+        endDate = new Date(endDate.getFullYear(), endDate.getMonth(), 0, 23, 59, 59, 999);
+    } else if (timeRange === '3_months') {
+        startDate.setMonth(endDate.getMonth() - 3);
+    } else if (timeRange === 'custom') {
+        const [sy, sm, sd] = customStartDate.split('-');
+        startDate = new Date(sy, sm - 1, sd, 0, 0, 0);
+        const [ey, em, ed] = customEndDate.split('-');
+        endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
     }
 
-    // Lọc giao dịch theo thời gian
+    // Lọc giao dịch chuẩn xác không lệch múi giờ
     const filteredTxs = rawTxs.filter(tx => {
         if (timeRange === 'all_time') return true;
-        const txDate = new Date(tx.date);
-        return txDate >= startDate && txDate <= endDate;
+
+        // Cắt chuỗi YYYY-MM-DD để tạo ngày giờ chuẩn local
+        const [y, m, d] = tx.date.split('-');
+        const txDate = new Date(y, m - 1, d, 0, 0, 0);
+
+        return txDate.getTime() >= startDate.getTime() && txDate.getTime() <= endDate.getTime();
     });
 
-    // Tính Tổng quan (Summary)
+    // Tính Tổng quan
     let totalInc = 0;
     let totalExp = 0;
     filteredTxs.forEach(tx => {
@@ -107,7 +123,7 @@ export default function Dashboard() {
     });
     const totalBalance = rawWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
 
-    // Xử lý Biểu đồ Tròn (Pie Chart) Dựa trên Thẻ đang chọn
+    // Xử lý Biểu đồ Tròn
     let pie = [];
     if (activeCard === 'balance') {
         pie = rawWallets.filter(w => w.balance > 0).map(w => ({ name: w.name, value: Number(w.balance) }));
@@ -122,23 +138,24 @@ export default function Dashboard() {
         pie = Object.keys(catStats).map(k => ({ name: k, value: catStats[k] }));
     }
 
-    // Xử lý Biểu đồ Cột (Bar Chart)
+    // Xử lý Biểu đồ Cột
     const dStats = {};
-    // Tính toán số ngày chênh lệch để quyết định gom nhóm theo Ngày hay theo Tháng
     const diffDays = timeRange === 'all_time' ? 999 : (endDate - startDate) / (1000 * 60 * 60 * 24);
     const groupByMonth = timeRange === '3_months' || timeRange === 'all_time' || diffDays > 31;
 
     filteredTxs.forEach(tx => {
-        const d = new Date(tx.date);
+        const [y, m, d] = tx.date.split('-');
+        const txDate = new Date(y, m - 1, d);
+
         let key = '';
         let display = '';
 
         if (groupByMonth) {
-            key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            display = `Th${d.getMonth() + 1}/${d.getFullYear().toString().slice(-2)}`;
+            key = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+            display = `Th${txDate.getMonth() + 1}/${txDate.getFullYear().toString().slice(-2)}`;
         } else {
             key = tx.date;
-            display = `${d.getDate()}/${d.getMonth() + 1}`;
+            display = `${txDate.getDate()}/${txDate.getMonth() + 1}`;
         }
 
         if (!dStats[key]) dStats[key] = { date: display, rawDate: key, income: 0, expense: 0 };
@@ -148,8 +165,6 @@ export default function Dashboard() {
     });
 
     const bar = Object.values(dStats).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
-
-    // Giao dịch gần nhất
     const sortedTx = [...rawTxs].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return { totalBalance, totalInc, totalExp, pie, bar, recentTxs: sortedTx.slice(0, 5) };
@@ -177,7 +192,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Bộ lọc thời gian bao gồm Tùy chỉnh */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
              <div className="flex items-center bg-gray-50 p-1.5 rounded-xl border border-gray-200 w-full sm:w-auto">
                  <Calendar size={18} className="text-gray-500 ml-2 shrink-0" />
@@ -195,7 +209,6 @@ export default function Dashboard() {
                  </select>
              </div>
 
-             {/* Chỉ hiện 2 ô chọn ngày khi user chọn "Tùy chỉnh..." */}
              {timeRange === 'custom' && (
                  <div className="flex items-center gap-2 animate-fade-in w-full sm:w-auto bg-white border border-gray-200 p-1 rounded-xl">
                     <input

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Download, Trash2, Loader2, AlertTriangle, Edit2, X } from 'lucide-react';
+import { Filter, Trash2, Loader2, AlertTriangle, Edit2, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axiosClient from '../../api/axiosClient';
 import CurrencyInput from '../../components/CurrencyInput';
@@ -18,20 +18,27 @@ export default function TransactionsList() {
   const [categoryMap, setCategoryMap] = useState({});
   const [categoriesList, setCategoriesList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingTx, setIsFetchingTx] = useState(false); // Trạng thái loading riêng cho mảng giao dịch
+
+  // ==========================================
+  // STATE: PHÂN TRANG VÀ BỘ LỌC (SERVER-SIDE)
+  // ==========================================
+  const [page, setPage] = useState(1);
+  const [size] = useState(20); // Mặc định 20 giao dịch 1 trang
+  const [totalItems, setTotalItems] = useState(0);
+
+  const [filterType, setFilterType] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Trạng thái loading phụ
   const [deletingId, setDeletingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // State quản lý bộ lọc
-  const [filterType, setFilterType] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-
-  // State quản lý Popup Xóa
+  // State quản lý Popup Xóa & Sửa
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
-
-  // State quản lý Modal Cập nhật (Edit)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     transaction_id: null,
@@ -42,70 +49,121 @@ export default function TransactionsList() {
     transaction_type: 'expense'
   });
 
+  // ==========================================
+  // LẤY DỮ LIỆU METADATA (VÍ, DANH MỤC) - CHỈ CHẠY 1 LẦN
+  // ==========================================
   useEffect(() => {
-    fetchData();
+    const fetchMetadata = async () => {
+      try {
+        const [walletsRes, categoriesRes] = await Promise.all([
+          axiosClient.get('/wallets/'),
+          axiosClient.get('/categories/')
+        ]);
+
+        const walletsData = walletsRes.data || walletsRes || [];
+        const categoriesData = categoriesRes.data || categoriesRes || [];
+
+        const wMap = {};
+        if (Array.isArray(walletsData)) {
+            walletsData.forEach(w => { wMap[w.wallet_id] = w.name; });
+        }
+        setWalletMap(wMap);
+
+        const cMap = {};
+        const cList = [];
+        const flattenCategories = (cats) => {
+          if (!Array.isArray(cats)) return;
+          cats.forEach(c => {
+            cMap[c.category_id] = { name: c.name, icon: c.icon || '📌', type: c.type };
+            cList.push({ id: c.category_id, name: c.name, icon: c.icon || '📌', type: c.type });
+            if (c.subcategories && Array.isArray(c.subcategories)) {
+              flattenCategories(c.subcategories);
+            }
+          });
+        };
+        flattenCategories(categoriesData);
+
+        setCategoryMap(cMap);
+        setCategoriesList(cList);
+      } catch (error) {
+        console.error("Lỗi tải metadata:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMetadata();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      const [walletsRes, categoriesRes, txRes] = await Promise.all([
-        axiosClient.get('/wallets/'),
-        axiosClient.get('/categories/'),
-        axiosClient.get('/transactions/?page=1&size=100')
-      ]);
+  // ==========================================
+  // LẤY DỮ LIỆU GIAO DỊCH - CHẠY LẠI MỖI KHI FILTER HOẶC PAGE THAY ĐỔI
+  // ==========================================
+  const fetchTransactions = async () => {
+    // Chặn gọi API nếu ngày bắt đầu > ngày kết thúc
+    if (startDate && endDate && startDate > endDate) {
+        toast.error("Ngày bắt đầu không được lớn hơn ngày kết thúc!");
+        return;
+    }
 
-      const walletsData = walletsRes.data || walletsRes || [];
-      const categoriesData = categoriesRes.data || categoriesRes || [];
+    try {
+      setIsFetchingTx(true);
+      // Xây dựng query params gửi xuống Backend
+      let query = `?page=${page}&size=${size}`;
+      if (filterType !== 'all') query += `&type=${filterType}`;
+      if (filterCategory !== 'all') query += `&category_id=${filterCategory}`;
+      if (startDate) query += `&start_date=${startDate}`;
+      if (endDate) query += `&end_date=${endDate}`;
+
+      const txRes = await axiosClient.get(`/transactions/${query}`);
 
       let txData = [];
-      if (txRes?.data?.items) txData = txRes.data.items;
-      else if (txRes?.items) txData = txRes.items;
-      else if (Array.isArray(txRes?.data)) txData = txRes.data;
-      else if (Array.isArray(txRes)) txData = txRes;
+      let total = 0;
 
-      const wMap = {};
-      if (Array.isArray(walletsData)) {
-          walletsData.forEach(w => { wMap[w.wallet_id] = w.name; });
+      // Bóc tách dữ liệu theo chuẩn phân trang API Design
+      if (txRes?.data?.items) {
+          txData = txRes.data.items;
+          total = txRes.data.total;
+      } else if (txRes?.items) {
+          txData = txRes.items;
+          total = txRes.total;
+      } else if (Array.isArray(txRes?.data)) {
+          txData = txRes.data;
+      } else if (Array.isArray(txRes)) {
+          txData = txRes;
       }
-      setWalletMap(wMap);
 
-      const cMap = {};
-      const cList = [];
-      const flattenCategories = (cats) => {
-        if (!Array.isArray(cats)) return;
-        cats.forEach(c => {
-          cMap[c.category_id] = { name: c.name, icon: c.icon || '📌', type: c.type };
-          cList.push({ id: c.category_id, name: c.name, icon: c.icon || '📌', type: c.type });
-          if (c.subcategories && Array.isArray(c.subcategories)) {
-            flattenCategories(c.subcategories);
-          }
-        });
-      };
-      flattenCategories(categoriesData);
-
-      setCategoryMap(cMap);
-      setCategoriesList(cList);
       setTransactions(txData);
+      setTotalItems(total);
 
     } catch (error) {
       console.error("Lỗi tải dữ liệu giao dịch:", error);
       toast.error("Không thể tải danh sách giao dịch");
     } finally {
-      setIsLoading(false);
+      setIsFetchingTx(false);
     }
+  };
+
+  // Lắng nghe sự thay đổi của Filter và Page để gọi lại API
+  useEffect(() => {
+    if (!isLoading) {
+       fetchTransactions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filterType, filterCategory, startDate, endDate, isLoading]);
+
+
+  // ==========================================
+  // HÀM XỬ LÝ THAY ĐỔI FILTER (RESET PAGE VỀ 1)
+  // ==========================================
+  const handleFilterChange = (setter, value) => {
+      setter(value);
+      setPage(1); // Bắt buộc reset về trang 1 khi đổi bộ lọc
   };
 
   const handleTypeChange = (type) => {
       setFilterType(type);
-      setFilterCategory('all');
+      setFilterCategory('all'); // Đổi loại (Thu/Chi) thì reset luôn Danh mục
+      setPage(1);
   };
-
-  const filteredTransactions = transactions.filter(tx => {
-    const matchType = filterType === 'all' || tx.transaction_type === filterType;
-    const matchCategory = filterCategory === 'all' || tx.category_id.toString() === filterCategory;
-    return matchType && matchCategory;
-  });
 
   // ==========================================
   // XỬ LÝ XÓA GIAO DỊCH
@@ -131,7 +189,7 @@ export default function TransactionsList() {
 
     try {
       await promise;
-      setTransactions(prev => prev.filter(tx => tx.transaction_id !== transactionId));
+      fetchTransactions(); // Tải lại trang hiện tại để đồng bộ tổng số lượng
     } catch (error) {
       console.error(error);
     } finally {
@@ -151,7 +209,7 @@ export default function TransactionsList() {
         category_id: tx.category_id,
         date: tx.date,
         note: tx.note || '',
-        transaction_type: tx.transaction_type // Lưu lại để filter dropdown
+        transaction_type: tx.transaction_type
     });
     setIsEditModalOpen(true);
   };
@@ -168,7 +226,6 @@ export default function TransactionsList() {
       };
 
       const promise = axiosClient.put(`/transactions/${editFormData.transaction_id}`, payload);
-
       toast.promise(promise, {
           loading: 'Đang cập nhật...',
           success: 'Cập nhật thành công! ✏️',
@@ -178,13 +235,16 @@ export default function TransactionsList() {
       try {
           await promise;
           setIsEditModalOpen(false);
-          fetchData(); // Tải lại toàn bộ dữ liệu để đồng bộ UI và số liệu
+          fetchTransactions(); // Tải lại để đồng bộ số liệu UI
       } catch (error) {
           console.error(error);
       } finally {
           setIsSubmitting(false);
       }
   };
+
+  // Tính toán số trang
+  const totalPages = Math.ceil(totalItems / size) || 1;
 
   if (isLoading) {
     return (
@@ -198,52 +258,78 @@ export default function TransactionsList() {
     <div className="bg-gray-50 min-h-screen pb-24 lg:py-8 animate-fade-in">
       <div className="max-w-4xl mx-auto space-y-6 px-4 lg:px-0">
 
-        {/* Header & Filter */}
-        <div className="bg-white p-5 lg:p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mt-4 lg:mt-0">
+        {/* HEADER & FILTER */}
+        <div className="bg-white p-5 lg:p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-5 mt-4 lg:mt-0">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Lịch sử giao dịch</h2>
-            <p className="text-sm text-gray-500 mt-1">Quản lý các khoản thu chi của bạn</p>
+            <p className="text-sm text-gray-500 mt-1">Quản lý và tra cứu các khoản thu chi của bạn</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto items-start sm:items-center">
-
-            {/* Lọc theo Loại (Thu/Chi) */}
-            <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+          <div className="flex flex-col xl:flex-row flex-wrap gap-4 w-full">
+            {/* Bộ lọc Loại (Thu/Chi) */}
+            <div className="flex gap-2 w-full xl:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar shrink-0">
                 <button onClick={() => handleTypeChange('all')} className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filterType === 'all' ? 'bg-slate-800 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Tất cả</button>
                 <button onClick={() => handleTypeChange('expense')} className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filterType === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Chi phí</button>
                 <button onClick={() => handleTypeChange('income')} className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filterType === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Thu nhập</button>
             </div>
 
-            {/* Lọc theo Danh mục */}
-            <div className="flex items-center gap-2 w-full sm:w-auto min-w-[180px] max-w-xs">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                    <Filter size={18} />
+            {/* Nhóm Bộ lọc Ngày & Danh mục */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full xl:w-auto flex-1">
+                {/* Lọc khoảng thời gian */}
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 w-full sm:w-auto shrink-0">
+                   <Calendar size={18} className="text-indigo-600" />
+                   <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => handleFilterChange(setStartDate, e.target.value)}
+                      className="bg-transparent text-sm focus:outline-none text-slate-700 w-full sm:w-auto"
+                   />
+                   <span className="text-gray-400 font-medium">-</span>
+                   <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => handleFilterChange(setEndDate, e.target.value)}
+                      className="bg-transparent text-sm focus:outline-none text-slate-700 w-full sm:w-auto"
+                   />
                 </div>
-                <select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    className="flex-1 bg-gray-50 border border-gray-200 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 font-medium cursor-pointer truncate"
-                >
-                    <option value="all">Mọi danh mục</option>
-                    {categoriesList
-                        .filter(c => filterType === 'all' || c.type === filterType)
-                        .map(c => (
-                            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-                        ))
-                    }
-                </select>
+
+                {/* Lọc theo Danh mục */}
+                <div className="flex items-center gap-2 w-full sm:flex-1 min-w-[180px]">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <Filter size={18} />
+                    </div>
+                    <select
+                        value={filterCategory}
+                        onChange={(e) => handleFilterChange(setFilterCategory, e.target.value)}
+                        className="flex-1 bg-gray-50 border border-gray-200 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 font-medium cursor-pointer truncate"
+                    >
+                        <option value="all">Mọi danh mục</option>
+                        {categoriesList
+                            .filter(c => filterType === 'all' || c.type === filterType)
+                            .map(c => (
+                                <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                            ))
+                        }
+                    </select>
+                </div>
             </div>
           </div>
         </div>
 
-        {/* Transaction List */}
-        <div className="space-y-3">
-            {filteredTransactions.length === 0 ? (
+        {/* TRANSACTION LIST */}
+        <div className="space-y-3 relative min-h-[200px]">
+            {isFetchingTx && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-3xl">
+                    <Loader2 className="animate-spin text-indigo-600" size={32} />
+                </div>
+            )}
+
+            {transactions.length === 0 && !isFetchingTx ? (
               <div className="text-center py-16 text-gray-500 bg-white rounded-3xl border border-dashed border-gray-200">
                 Không tìm thấy giao dịch nào phù hợp.
               </div>
             ) : (
-              filteredTransactions.map(tx => {
+              transactions.map(tx => {
                 const isIncome = tx.transaction_type === 'income';
                 const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓' };
                 const walletName = walletMap[tx.wallet_id] || 'Ví ẩn';
@@ -291,6 +377,29 @@ export default function TransactionsList() {
               })
             )}
         </div>
+
+        {/* PAGINATION (ĐIỀU HƯỚNG TRANG) */}
+        {totalPages > 1 && (
+            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm mt-6">
+                <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1 || isFetchingTx}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                    <ChevronLeft size={18} /> Trước
+                </button>
+                <div className="text-sm font-semibold text-gray-500">
+                    Trang <span className="text-indigo-600">{page}</span> / {totalPages}
+                </div>
+                <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages || isFetchingTx}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                    Sau <ChevronRight size={18} />
+                </button>
+            </div>
+        )}
       </div>
 
       {/* ========================================== */}

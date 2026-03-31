@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/", response_model=dict)
 def get_transactions(
         page: int = Query(1, ge=1, description="Số trang hiện tại"),
-        size: int = Query(20, ge=1, le=100, description="Số item trên 1 trang"),
+        size: int = Query(20, ge=1, description="Số item trên 1 trang"),
         type: Optional[str] = Query(None, description="Lọc: expense/income"),
         wallet_id: Optional[int] = Query(None, description="Lọc theo ID ví"),
         category_id: Optional[int] = Query(None, description="Lọc theo ID danh mục"),
