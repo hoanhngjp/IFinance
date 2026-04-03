@@ -330,8 +330,8 @@ export default function TransactionsList() {
               </div>
             ) : (
               transactions.map(tx => {
-                const isIncome = tx.transaction_type === 'income';
-                const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓' };
+                const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓', type: 'expense' };
+                const isIncome = tx.transaction_type === 'income' || catInfo.type === 'income';
                 const walletName = walletMap[tx.wallet_id] || 'Ví ẩn';
                 const isDeletingThis = deletingId === tx.transaction_id;
 

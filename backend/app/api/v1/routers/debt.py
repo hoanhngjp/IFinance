@@ -58,13 +58,15 @@ def create_debt(
         db.add(new_debt)
         db.flush()
 
+        tx_type = TransactionType.income if debt_type_val == "payable" else TransactionType.expense
+
         tx = Transaction(
             user_id=current_user.user_id,
             wallet_id=debt_in.wallet_id,
             category_id=debt_in.category_id,
             amount=debt_in.total_amount,
             date=date.today(),
-            transaction_type=TransactionType.debt_loan,
+            transaction_type=tx_type,
             note=f"Ghi nhận khoản nợ: {debt_in.creditor_name}"
         )
         db.add(tx)
@@ -145,14 +147,14 @@ def repay_debt(
 
     try:
         debt.remaining_amount = current_remaining - repay_amount
-
+        tx_type = TransactionType.expense if is_payable else TransactionType.income
         tx = Transaction(
             user_id=current_user.user_id,
             wallet_id=repay_in.wallet_id,
             category_id=repay_in.category_id,
             amount=repay_in.amount,
             date=repay_in.date,
-            transaction_type=TransactionType.debt_repayment,
+            transaction_type=tx_type,
             note=repay_in.note or f"Trả nợ cho: {debt.creditor_name}"
         )
         db.add(tx)
