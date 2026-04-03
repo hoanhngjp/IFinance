@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 
 from app.db.database import get_db
-from app.models.user import User
+from app.models.user import User, TokenBlacklist
 from app.schemas.user import UserCreate, UserResponse, Token, RefreshTokenRequest, LogoutRequest
 from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token, SECRET_KEY, \
     ALGORITHM
@@ -60,6 +60,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @router.post("/refresh-token", response_model=Token)
 def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    # 1. Kiểm tra xem Token này có nằm trong Blacklist (đã logout) hay chưa?
+    is_blacklisted = db.query(TokenBlacklist).filter(TokenBlacklist.token == request.refresh_token).first()
+    if is_blacklisted:
+        raise HTTPException(status_code=401, detail="Token đã bị thu hồi (Người dùng đã đăng xuất)")
+
     try:
         payload = jwt.decode(request.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -94,14 +99,26 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout", response_model=dict)
-def logout(request: LogoutRequest, current_user: User = Depends(get_current_user)):
+def logout(
+        request: LogoutRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
     """
-    API Đăng xuất:
-    Trong hệ thống JWT Stateless thực tế, khi user gọi logout, ta sẽ đưa
-    request.refresh_token vào một bảng Blacklist (hoặc Redis) để token này
-    không thể dùng để lấy access_token mới được nữa.
+    API Đăng xuất an toàn tuyệt đối.
+    Thêm refresh_token hiện tại vào Blacklist để chặn cấp quyền về sau.
     """
-    # TODO: Thêm logic lưu request.refresh_token vào bảng Blacklist (nếu có)
+    # Kiểm tra xem token đã có trong blacklist chưa để tránh lỗi duplicate
+    exists = db.query(TokenBlacklist).filter(TokenBlacklist.token == request.refresh_token).first()
+
+    if not exists:
+        try:
+            blacklisted_token = TokenBlacklist(token=request.refresh_token)
+            db.add(blacklisted_token)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Không thể xử lý quá trình đăng xuất")
 
     return {
         "status": "success",

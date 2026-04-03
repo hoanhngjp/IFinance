@@ -22,3 +22,10 @@ class User(Base):
     investments = relationship("Investment", back_populates="user", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     budgets = relationship("Budget", back_populates="user", cascade="all, delete-orphan")
+
+class TokenBlacklist(Base):
+    __tablename__ = "token_blacklist"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token = Column(String(500), unique=True, nullable=False, index=True)
+    blacklisted_on = Column(DateTime(timezone=True), server_default=func.now())
