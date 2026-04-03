@@ -6,6 +6,12 @@ import CurrencyInput from '../../components/CurrencyInput';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
+// Hàm parse tiền chuẩn (Loại bỏ lỗi NaN)
+const parseCurrency = (value) => {
+    if (!value) return 0;
+    return Number(value.toString().replace(/[^0-9]/g, ''));
+};
+
 export default function Debts() {
   const [activeTab, setActiveTab] = useState('payable');
   const [debts, setDebts] = useState([]);
@@ -23,9 +29,8 @@ export default function Debts() {
   const [repaymentHistory, setRepaymentHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Form States
   const [newDebtData, setNewDebtData] = useState({
-    creditor_name: '', total_amount: '', type: 'payable', wallet_id: '', note: '', due_date: ''
+    creditor_name: '', total_amount: '', type: 'payable', wallet_id: '', category_id: '', note: '', due_date: ''
   });
 
   const [repayData, setRepayData] = useState({
@@ -56,11 +61,15 @@ export default function Debts() {
   const handleCreateDebt = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    const promise = axiosClient.post('/debts/', {
+
+    const payload = {
       ...newDebtData,
-      total_amount: Number(newDebtData.total_amount),
+      total_amount: parseCurrency(newDebtData.total_amount),
+      category_id: Number(newDebtData.category_id),
       due_date: newDebtData.due_date || null
-    });
+    };
+
+    const promise = axiosClient.post('/debts/', payload);
 
     toast.promise(promise, {
       loading: 'Đang tạo khoản nợ...',
@@ -71,7 +80,7 @@ export default function Debts() {
     try {
       await promise;
       setIsAddModalOpen(false);
-      setNewDebtData({ creditor_name: '', total_amount: '', type: activeTab, wallet_id: '', note: '', due_date: '' });
+      setNewDebtData({ creditor_name: '', total_amount: '', type: activeTab, wallet_id: '', category_id: '', note: '', due_date: '' });
       fetchData();
     } catch (error) {} finally { setIsSubmitting(false); }
   };
@@ -92,13 +101,16 @@ export default function Debts() {
 
   const handleRepay = async (e) => {
     e.preventDefault();
-    if (Number(repayData.amount) > selectedDebt.remaining_amount) {
+
+    const amountParsed = parseCurrency(repayData.amount);
+    if (amountParsed > selectedDebt.remaining_amount) {
         return toast.error("Số tiền trả không được vượt quá số nợ còn lại!");
     }
+
     setIsSubmitting(true);
     const promise = axiosClient.post(`/debts/${selectedDebt.debt_id}/repay`, {
       ...repayData,
-      amount: Number(repayData.amount),
+      amount: amountParsed,
       category_id: Number(repayData.category_id)
     });
 
@@ -186,7 +198,8 @@ export default function Debts() {
 
                   <div className="mt-6 flex gap-3">
                     <button onClick={() => fetchHistory(debt)} className="p-3 bg-gray-50 hover:bg-gray-100 text-slate-600 rounded-xl transition-colors" title="Lịch sử trả nợ"><History size={20}/></button>
-                    <button disabled={Number(debt.remaining_amount) === 0} onClick={() => { setSelectedDebt(debt); setRepayData(prev => ({ ...prev, amount: debt.remaining_amount })); setIsRepayModalOpen(true); }} className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all shadow-sm disabled:opacity-30 ${activeTab === 'payable' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                    {/* FIX: Sử dụng Math.floor(Number(...)) để chống lỗi sinh thêm số 0 do Decimal */}
+                    <button disabled={Number(debt.remaining_amount) === 0} onClick={() => { setSelectedDebt(debt); setRepayData(prev => ({ ...prev, amount: Math.floor(Number(debt.remaining_amount)).toString() })); setIsRepayModalOpen(true); }} className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all shadow-sm disabled:opacity-30 ${activeTab === 'payable' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
                       {Number(debt.remaining_amount) === 0 ? 'Đã hoàn tất' : (activeTab === 'payable' ? 'Trả nợ' : 'Thu nợ')}
                     </button>
                   </div>
@@ -258,12 +271,22 @@ export default function Debts() {
                   <input type="date" value={newDebtData.due_date} onChange={(e) => setNewDebtData({...newDebtData, due_date: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer" />
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Ví {newDebtData.type === 'payable' ? 'nhận tiền' : 'chi tiền'}</label>
-                <select required value={newDebtData.wallet_id} onChange={(e) => setNewDebtData({...newDebtData, wallet_id: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500">
-                    <option value="">-- Chọn ví --</option>
-                    {wallets.map(w => <option key={w.wallet_id} value={w.wallet_id}>{w.name} (Dư: {formatCurrency(w.balance)})</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">Ví {newDebtData.type === 'payable' ? 'nhận tiền' : 'chi tiền'}</label>
+                    <select required value={newDebtData.wallet_id} onChange={(e) => setNewDebtData({...newDebtData, wallet_id: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500">
+                        <option value="">-- Chọn ví --</option>
+                        {wallets.map(w => <option key={w.wallet_id} value={w.wallet_id}>{w.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">Danh mục hạch toán</label>
+                    <select required value={newDebtData.category_id} onChange={(e) => setNewDebtData({...newDebtData, category_id: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500">
+                        <option value="">-- Danh mục --</option>
+                        {categories.filter(c => c.type === (newDebtData.type === 'payable' ? 'income' : 'expense')).map(c => <option key={c.category_id} value={c.category_id}>{c.icon} {c.name}</option>)}
+                    </select>
+                  </div>
               </div>
 
               <button disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex justify-center items-center gap-2 mt-2">

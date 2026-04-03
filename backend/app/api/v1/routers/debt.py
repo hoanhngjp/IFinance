@@ -1,43 +1,63 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from datetime import date
+from typing import Optional
+from decimal import Decimal  # Cực kỳ quan trọng để xử lý tiền tệ
 
 from app.db.database import get_db
 from app.models.wallet_category import Wallet, Category
 from app.models.transaction import Transaction
 from app.models.finance_modules import Debt, DebtRepayment
 from app.models.user import User
-from app.models.enums import TransactionType, DebtType
+from app.models.enums import TransactionType, DebtType, WalletType
 from app.schemas.debt import DebtCreate, DebtResponse, DebtRepaymentCreate
 from app.api.deps import get_current_user
 
 router = APIRouter()
 
+
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 def create_debt(
-    debt_in: DebtCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        debt_in: DebtCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
-    wallet = db.query(Wallet).filter(Wallet.wallet_id == debt_in.wallet_id, Wallet.user_id == current_user.user_id).first()
+    wallet = db.query(Wallet).filter(Wallet.wallet_id == debt_in.wallet_id,
+                                     Wallet.user_id == current_user.user_id).first()
     if not wallet: raise HTTPException(status_code=404, detail="Không tìm thấy ví tiền")
 
+    # Ép kiểu an toàn
+    current_balance = Decimal(str(wallet.balance or 0))
+    loan_amount = Decimal(str(debt_in.total_amount))
+
+    # Lấy giá trị chuỗi thuần túy từ Enum để loại bỏ mọi lỗi so sánh
+    debt_type_val = debt_in.type.value if hasattr(debt_in.type, 'value') else debt_in.type
+    wallet_type_val = wallet.type.value if hasattr(wallet.type, 'value') else wallet.type
+
+    is_receivable = (debt_type_val == "receivable")
+    is_credit_wallet = (wallet_type_val == "credit")
+
+    if is_receivable and not is_credit_wallet:
+        if current_balance < loan_amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ví không đủ số dư để cho vay. Số dư hiện tại chỉ còn {current_balance:,.0f}đ"
+            )
+
     try:
-        # 1. Tạo khoản nợ trong bảng Debts
         new_debt = Debt(
             user_id=current_user.user_id,
             creditor_name=debt_in.creditor_name,
             type=debt_in.type,
             total_amount=debt_in.total_amount,
-            remaining_amount=debt_in.total_amount, # Mới tạo thì nợ còn lại = tổng nợ
+            remaining_amount=debt_in.total_amount,
             interest_rate=debt_in.interest_rate,
             due_date=debt_in.due_date,
             is_installment=debt_in.is_installment
         )
         db.add(new_debt)
-        db.flush() # Lấy debt_id ngay lập tức mà chưa commit
+        db.flush()
 
-        # 2. Tạo giao dịch (Transaction) tương ứng
         tx = Transaction(
             user_id=current_user.user_id,
             wallet_id=debt_in.wallet_id,
@@ -49,11 +69,10 @@ def create_debt(
         )
         db.add(tx)
 
-        # 3. Cập nhật số dư Ví
-        if debt_in.type == DebtType.payable: # Đi vay -> Nhận tiền vào ví
-            wallet.balance += debt_in.total_amount
-        elif debt_in.type == DebtType.receivable: # Cho vay -> Trừ tiền từ ví
-            wallet.balance -= debt_in.total_amount
+        if debt_type_val == "payable":
+            wallet.balance = current_balance + loan_amount
+        elif debt_type_val == "receivable":
+            wallet.balance = current_balance - loan_amount
 
         db.commit()
         db.refresh(new_debt)
@@ -69,8 +88,18 @@ def create_debt(
 
 
 @router.get("/", response_model=dict)
-def get_debts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    debts = db.query(Debt).filter(Debt.user_id == current_user.user_id).all()
+def get_debts(
+        status: Optional[str] = Query(None, description="Lọc trạng thái nợ (ví dụ: active)"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    query = db.query(Debt).filter(Debt.user_id == current_user.user_id)
+
+    if status == "active":
+        query = query.filter(Debt.remaining_amount > 0)
+
+    debts = query.order_by(Debt.due_date.asc()).all()
+
     return {
         "status": "success",
         "data": [DebtResponse.model_validate(d) for d in debts]
@@ -79,26 +108,44 @@ def get_debts(db: Session = Depends(get_db), current_user: User = Depends(get_cu
 
 @router.post("/{debt_id}/repay", response_model=dict)
 def repay_debt(
-    debt_id: int,
-    repay_in: DebtRepaymentCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        debt_id: int,
+        repay_in: DebtRepaymentCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     debt = db.query(Debt).filter(Debt.debt_id == debt_id, Debt.user_id == current_user.user_id).first()
     if not debt: raise HTTPException(status_code=404, detail="Không tìm thấy khoản nợ")
-    if debt.remaining_amount == 0:
+
+    current_remaining = Decimal(str(debt.remaining_amount or 0))
+    repay_amount = Decimal(str(repay_in.amount))
+
+    if current_remaining == 0:
         raise HTTPException(status_code=400, detail="Khoản nợ này đã được thanh toán xong")
-    if repay_in.amount > debt.remaining_amount:
-        raise HTTPException(status_code=400, detail="Số tiền trả không được lớn hơn số nợ còn lại")
+    if repay_amount > current_remaining:
+        raise HTTPException(status_code=400,
+                            detail=f"Số tiền trả không được lớn hơn số nợ còn lại ({current_remaining:,.0f}đ)")
 
     wallet = db.query(Wallet).filter(Wallet.wallet_id == repay_in.wallet_id).first()
     if not wallet: raise HTTPException(status_code=404, detail="Không tìm thấy ví tiền")
 
-    try:
-        # 1. Cập nhật số nợ còn lại
-        debt.remaining_amount -= repay_in.amount
+    current_balance = Decimal(str(wallet.balance or 0))
 
-        # 2. Tạo Transaction (Dòng tiền thực tế)
+    debt_type_val = debt.type.value if hasattr(debt.type, 'value') else debt.type
+    wallet_type_val = wallet.type.value if hasattr(wallet.type, 'value') else wallet.type
+
+    is_payable = (debt_type_val == "payable")
+    is_credit_wallet = (wallet_type_val == "credit")
+
+    if is_payable and not is_credit_wallet:
+        if current_balance < repay_amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ví không đủ số dư để trả nợ. Số dư hiện tại chỉ còn {current_balance:,.0f}đ"
+            )
+
+    try:
+        debt.remaining_amount = current_remaining - repay_amount
+
         tx = Transaction(
             user_id=current_user.user_id,
             wallet_id=repay_in.wallet_id,
@@ -111,7 +158,6 @@ def repay_debt(
         db.add(tx)
         db.flush()
 
-        # 3. Tạo record trong Debt_Repayments (Lịch sử trả nợ)
         repayment_record = DebtRepayment(
             debt_id=debt.debt_id,
             transaction_id=tx.transaction_id,
@@ -120,11 +166,10 @@ def repay_debt(
         )
         db.add(repayment_record)
 
-        # 4. Cập nhật số dư Ví
-        if debt.type == DebtType.payable: # Trả nợ mình đã vay -> Trừ tiền ví
-            wallet.balance -= repay_in.amount
-        elif debt.type == DebtType.receivable: # Người khác trả nợ cho mình -> Cộng tiền ví
-            wallet.balance += repay_in.amount
+        if is_payable:
+            wallet.balance = current_balance - repay_amount
+        elif debt_type_val == "receivable":
+            wallet.balance = current_balance + repay_amount
 
         db.commit()
         return {"status": "success", "message": "Ghi nhận trả nợ thành công"}
@@ -132,28 +177,26 @@ def repay_debt(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
 
+
 @router.get("/{debt_id}/repayments", response_model=dict)
 def get_debt_repayments(
-    debt_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        debt_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
-    # Kiểm tra xem khoản nợ có thuộc quyền sở hữu của user không
     debt = db.query(Debt).filter(Debt.debt_id == debt_id, Debt.user_id == current_user.user_id).first()
     if not debt:
         raise HTTPException(status_code=404, detail="Không tìm thấy khoản nợ")
 
-    # Lấy danh sách lịch sử trả nợ, JOIN với bảng Transaction để lấy thêm thông tin ví
     repayments = db.query(
         DebtRepayment.repayment_id,
         DebtRepayment.amount,
         DebtRepayment.date,
         Transaction.note
-    ).join(Transaction, DebtRepayment.transaction_id == Transaction.transaction_id)\
-     .filter(DebtRepayment.debt_id == debt_id)\
-     .order_by(DebtRepayment.date.desc()).all()
+    ).join(Transaction, DebtRepayment.transaction_id == Transaction.transaction_id) \
+        .filter(DebtRepayment.debt_id == debt_id) \
+        .order_by(DebtRepayment.date.desc()).all()
 
-    # Format lại dữ liệu trả về
     history = [
         {"repayment_id": r.repayment_id, "amount": float(r.amount), "date": r.date, "note": r.note}
         for r in repayments
