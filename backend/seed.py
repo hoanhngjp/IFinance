@@ -1,7 +1,7 @@
 import os
 import sys
 import calendar
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 # Đảm bảo python hiểu thư mục hiện tại để import app module
@@ -24,7 +24,9 @@ def seed_data():
     try:
         print("🌱 Đang khởi tạo dữ liệu mẫu (Seed Data)...")
 
+        # ==========================================
         # 1. TẠO USER MẶC ĐỊNH
+        # ==========================================
         test_email = "test@ifinance.com"
         user = db.query(User).filter(User.email == test_email).first()
         if not user:
@@ -42,25 +44,41 @@ def seed_data():
         else:
             print("⚡ User test đã tồn tại. Bỏ qua bước tạo User.")
 
-        # 2. TẠO VÍ TIỀN (WALLETS)
+        # ==========================================
+        # 2. TẠO VÍ TIỀN (BAO GỒM VÍ TÍN DỤNG)
+        # ==========================================
         wallet_cash = db.query(Wallet).filter(Wallet.user_id == user.user_id, Wallet.name == "Tiền mặt").first()
         if not wallet_cash:
-            wallet_cash = Wallet(user_id=user.user_id, name="Tiền mặt", type=WalletType.cash,
-                                 balance=Decimal("5000000"), currency="VND")
-            wallet_bank = Wallet(user_id=user.user_id, name="Thẻ Vietcombank", type=WalletType.bank,
-                                 balance=Decimal("150000000"), currency="VND")
-            db.add_all([wallet_cash, wallet_bank])
+            # Ví Tiền mặt
+            wallet_cash = Wallet(
+                user_id=user.user_id, name="Tiền mặt", type=WalletType.cash,
+                balance=Decimal("5000000"), currency="VND", is_active=True, credit_limit=Decimal("0")
+            )
+            # Ví Ngân hàng
+            wallet_bank = Wallet(
+                user_id=user.user_id, name="Thẻ Vietcombank", type=WalletType.bank,
+                balance=Decimal("150000000"), currency="VND", is_active=True, credit_limit=Decimal("0")
+            )
+            # Ví Tín dụng (Có dư nợ ban đầu là âm 2 triệu)
+            wallet_credit = Wallet(
+                user_id=user.user_id, name="Thẻ Tín Dụng VIB", type=WalletType.credit,
+                balance=Decimal("-2000000"), currency="VND", is_active=True, credit_limit=Decimal("50000000")
+            )
+
+            db.add_all([wallet_cash, wallet_bank, wallet_credit])
             db.commit()
-            print("✅ Đã tạo Ví: Tiền mặt, Thẻ Vietcombank")
+            print("✅ Đã tạo 3 Ví: Tiền mặt, Thẻ Vietcombank, Thẻ Tín Dụng VIB")
 
         # Lấy lại ví sau khi commit
         wallet_cash = db.query(Wallet).filter(Wallet.name == "Tiền mặt").first()
         wallet_bank = db.query(Wallet).filter(Wallet.name == "Thẻ Vietcombank").first()
+        wallet_credit = db.query(Wallet).filter(Wallet.name == "Thẻ Tín Dụng VIB").first()
 
+        # ==========================================
         # 3. TẠO DANH MỤC (CATEGORIES)
+        # ==========================================
         cat_exist = db.query(Category).filter(Category.name == "Lương").first()
         if not cat_exist:
-            # Danh sách 38 danh mục mặc định chuẩn
             raw_categories = [
                 (1, None, "Lương", CategoryType.income, "💰"),
                 (2, None, "Thưởng", CategoryType.income, "🎁"),
@@ -103,8 +121,6 @@ def seed_data():
             ]
 
             cat_map = {}
-            # Pass 1: Tạo các danh mục Cha (parent_id = None)
-            # Gán user_id=None để làm Danh mục hệ thống
             for cid, pid, name, ctype, icon in raw_categories:
                 if pid is None:
                     cat = Category(user_id=None, name=name, type=ctype, icon=icon)
@@ -112,7 +128,6 @@ def seed_data():
                     cat_map[cid] = cat
             db.commit()
 
-            # Pass 2: Tạo các danh mục Con và map ID với danh mục Cha
             for cid, pid, name, ctype, icon in raw_categories:
                 if pid is not None:
                     parent_cat = cat_map[pid]
@@ -122,31 +137,34 @@ def seed_data():
             db.commit()
             print("✅ Đã tạo 38 Danh mục Hệ thống")
 
-        # Lấy lại danh mục để test
         cat_food = db.query(Category).filter(Category.name == "Ăn uống").first()
         cat_bill = db.query(Category).filter(Category.name == "Hóa đơn & Tiện ích").first()
         cat_salary = db.query(Category).filter(Category.name == "Lương").first()
 
-        # 4. TẠO GIAO DỊCH (TRANSACTIONS)
+        # ==========================================
+        # 4. TẠO GIAO DỊCH (TRANSACTIONS) CÓ TIMEZONE
+        # ==========================================
         tx_exist = db.query(Transaction).filter(Transaction.user_id == user.user_id).first()
         if not tx_exist and cat_food and cat_bill and cat_salary:
-            today = datetime.now()
+            now_utc = datetime.now(timezone.utc)
             transactions = [
                 Transaction(user_id=user.user_id, wallet_id=wallet_bank.wallet_id, category_id=cat_salary.category_id,
                             amount=Decimal("20000000"), transaction_type=TransactionType.income,
-                            date=today - timedelta(days=5), note="Lương tháng này"),
+                            date=now_utc - timedelta(days=5), note="Lương tháng này"),
                 Transaction(user_id=user.user_id, wallet_id=wallet_cash.wallet_id, category_id=cat_food.category_id,
                             amount=Decimal("50000"), transaction_type=TransactionType.expense,
-                            date=today - timedelta(days=1), note="Ăn phở sáng"),
-                Transaction(user_id=user.user_id, wallet_id=wallet_bank.wallet_id, category_id=cat_bill.category_id,
-                            amount=Decimal("800000"), transaction_type=TransactionType.expense, date=today,
-                            note="Đóng tiền điện")
+                            date=now_utc - timedelta(days=1), note="Ăn phở sáng"),
+                Transaction(user_id=user.user_id, wallet_id=wallet_credit.wallet_id, category_id=cat_bill.category_id,
+                            amount=Decimal("800000"), transaction_type=TransactionType.expense, date=now_utc,
+                            note="Quẹt thẻ tín dụng đóng tiền điện")
             ]
             db.add_all(transactions)
             db.commit()
             print("✅ Đã tạo Giao dịch thu/chi mẫu")
 
+        # ==========================================
         # 5. TẠO NGÂN SÁCH (BUDGET)
+        # ==========================================
         budget_exist = db.query(Budget).filter(Budget.user_id == user.user_id).first()
         if not budget_exist and cat_food:
             today_date = date.today()
@@ -163,7 +181,9 @@ def seed_data():
             db.commit()
             print("✅ Đã tạo Ngân sách: Ăn uống (5.000.000đ/tháng)")
 
+        # ==========================================
         # 6. TẠO ĐĂNG KÝ ĐỊNH KỲ (SUBSCRIPTION)
+        # ==========================================
         sub_exist = db.query(Subscription).filter(Subscription.user_id == user.user_id).first()
         if not sub_exist and cat_bill:
             sub = Subscription(
@@ -175,7 +195,9 @@ def seed_data():
             db.commit()
             print("✅ Đã tạo Gói định kỳ: Netflix (260.000đ/tháng)")
 
+        # ==========================================
         # 7. TẠO DANH MỤC ĐẦU TƯ (INVESTMENT)
+        # ==========================================
         inv_exist = db.query(Investment).filter(Investment.user_id == user.user_id).first()
         if not inv_exist:
             inv1 = Investment(user_id=user.user_id, wallet_id=wallet_bank.wallet_id, name="Vàng SJC",
@@ -190,7 +212,9 @@ def seed_data():
             db.commit()
             print("✅ Đã tạo Danh mục đầu tư mẫu (Vàng, Cổ phiếu)")
 
+        # ==========================================
         # 8. TẠO KHOẢN NỢ (DEBT)
+        # ==========================================
         debt_exist = db.query(Debt).filter(Debt.user_id == user.user_id).first()
         if not debt_exist:
             debt = Debt(user_id=user.user_id, creditor_name="Nam (Bạn đại học)", total_amount=Decimal("2000000"),
