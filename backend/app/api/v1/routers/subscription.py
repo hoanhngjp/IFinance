@@ -45,6 +45,10 @@ def create_subscription(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
+    # Kiểm tra ngày thanh toán tiếp theo không được nằm trong quá khứ
+    if sub_in.next_due_date < date.today():
+        raise HTTPException(status_code=400, detail="Ngày thanh toán tiếp theo không được nằm trong quá khứ")
+
     # Ktra ví
     wallet = db.query(Wallet).filter(Wallet.wallet_id == sub_in.default_wallet_id,
                                      Wallet.user_id == current_user.user_id).first()
