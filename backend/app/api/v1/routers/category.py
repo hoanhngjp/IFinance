@@ -27,6 +27,9 @@ def create_category(
         if not parent:
             raise HTTPException(status_code=404, detail="Danh mục cha không tồn tại")
 
+        if parent.type != category_in.type:
+            raise HTTPException(status_code=400, detail="Loại danh mục con phải trùng khớp với danh mục cha")
+        
     new_category = Category(
         user_id=current_user.user_id,
         name=category_in.name,
