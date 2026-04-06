@@ -17,16 +17,13 @@ const getWalletIcon = (type) => {
 export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
-  // States chứa dữ liệu thô (Raw Data) từ API
   const [rawWallets, setRawWallets] = useState([]);
   const [rawTxs, setRawTxs] = useState([]);
   const [categoryMap, setCategoryMap] = useState({});
 
-  // States Tương tác (Filters)
-  const [timeRange, setTimeRange] = useState('3_months'); // Đổi mặc định sang 3 tháng để luôn thấy dữ liệu
+  const [timeRange, setTimeRange] = useState('3_months');
   const [activeCard, setActiveCard] = useState('expense');
 
-  // State cho Tùy chỉnh thời gian
   const [customStartDate, setCustomStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -34,7 +31,6 @@ export default function Dashboard() {
   });
   const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-  // 1. GỌI API 1 LẦN DUY NHẤT
   useEffect(() => {
     const fetchRawData = async () => {
       try {
@@ -76,17 +72,13 @@ export default function Dashboard() {
     fetchRawData();
   }, []);
 
-  // 2. XỬ LÝ DỮ LIỆU ĐỘNG (FIX LỖI MÚI GIỜ)
   const dashboardData = useMemo(() => {
     if (!rawTxs && !rawWallets) return null;
 
     const now = new Date();
-    // Khóa cứng endDate ở 23:59:59 của ngày hiện tại
     let endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    // Khóa cứng startDate ở 00:00:00 của ngày hiện tại
     let startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
 
-    // Xử lý bộ lọc thời gian an toàn
     if (timeRange === '7_days') {
         startDate.setDate(endDate.getDate() - 7);
     } else if (timeRange === 'this_month') {
@@ -103,33 +95,37 @@ export default function Dashboard() {
         endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
     }
 
-    // Lọc giao dịch chuẩn xác không lệch múi giờ
     const filteredTxs = rawTxs.filter(tx => {
         if (timeRange === 'all_time') return true;
-
-        // Cắt chuỗi YYYY-MM-DD để tạo ngày giờ chuẩn local
         const [y, m, d] = tx.date.split('-');
         const txDate = new Date(y, m - 1, d, 0, 0, 0);
-
         return txDate.getTime() >= startDate.getTime() && txDate.getTime() <= endDate.getTime();
     });
 
-    // Tính Tổng quan
+    // ==========================================
+    // FIX: TÁCH BẠCH THU/CHI VÀ DÒNG TIỀN ĐẦU TƯ
+    // ==========================================
     let totalInc = 0;
     let totalExp = 0;
     filteredTxs.forEach(tx => {
-        if (tx.transaction_type === 'income') totalInc += Number(tx.amount || 0);
-        else totalExp += Number(tx.amount || 0);
+        // Chỉ lấy đúng Thu nhập thuần và Chi phí thuần cho thẻ Tổng quan
+        if (tx.transaction_type === 'income') {
+            totalInc += Number(tx.amount || 0);
+        } else if (tx.transaction_type === 'expense') {
+            totalExp += Number(tx.amount || 0);
+        }
+        // Các loại như transfer, investment_in, investment_return sẽ tự động bị bỏ qua ở đây
     });
+
     const totalBalance = rawWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
 
-    // Xử lý Biểu đồ Tròn
     let pie = [];
     if (activeCard === 'balance') {
         pie = rawWallets.filter(w => w.balance > 0).map(w => ({ name: w.name, value: Number(w.balance) }));
     } else {
         const catStats = {};
         filteredTxs.forEach(tx => {
+            // Vì activeCard chỉ có 'income' hoặc 'expense', biểu đồ tròn cũng sẽ tự động lọc chuẩn xác
             if (tx.transaction_type === activeCard) {
                 const catName = categoryMap[tx.category_id]?.name || 'Khác';
                 catStats[catName] = (catStats[catName] || 0) + Number(tx.amount || 0);
@@ -138,7 +134,6 @@ export default function Dashboard() {
         pie = Object.keys(catStats).map(k => ({ name: k, value: catStats[k] }));
     }
 
-    // Xử lý Biểu đồ Cột
     const dStats = {};
     const diffDays = timeRange === 'all_time' ? 999 : (endDate - startDate) / (1000 * 60 * 60 * 24);
     const groupByMonth = timeRange === '3_months' || timeRange === 'all_time' || diffDays > 31;
@@ -160,8 +155,12 @@ export default function Dashboard() {
 
         if (!dStats[key]) dStats[key] = { date: display, rawDate: key, income: 0, expense: 0 };
 
-        if (tx.transaction_type === 'income') dStats[key].income += Number(tx.amount || 0);
-        else dStats[key].expense += Number(tx.amount || 0);
+        // FIX: Biểu đồ cột cũng chỉ hiển thị Thu/Chi thuần
+        if (tx.transaction_type === 'income') {
+            dStats[key].income += Number(tx.amount || 0);
+        } else if (tx.transaction_type === 'expense') {
+            dStats[key].expense += Number(tx.amount || 0);
+        }
     });
 
     const bar = Object.values(dStats).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
@@ -229,7 +228,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ================= 3 THẺ TỔNG QUAN (CLICKABLE) ================= */}
+        {/* ================= 3 THẺ TỔNG QUAN ================= */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
             onClick={() => setActiveCard('balance')}
@@ -240,7 +239,7 @@ export default function Dashboard() {
               <div className={`p-2.5 rounded-xl ${activeCard === 'balance' ? 'bg-white/20 text-white backdrop-blur-sm' : 'bg-indigo-100 text-indigo-600'}`}><Wallet size={24} /></div>
               {activeCard === 'balance' && <MousePointerClick size={18} className="text-indigo-200 animate-pulse" />}
             </div>
-            <p className={`font-medium relative z-10 ${activeCard === 'balance' ? 'text-indigo-100' : 'text-gray-500'}`}>Tổng số dư (Tất cả)</p>
+            <p className={`font-medium relative z-10 ${activeCard === 'balance' ? 'text-indigo-100' : 'text-gray-500'}`}>Tổng số dư (Tất cả ví)</p>
             <h3 className="text-2xl lg:text-3xl font-bold mt-1 relative z-10">{formatCurrency(dashboardData?.totalBalance)}</h3>
           </div>
 
@@ -332,7 +331,9 @@ export default function Dashboard() {
                 </div>
               ) : (
                 dashboardData?.recentTxs.map(tx => {
-                  const isIncome = tx.transaction_type === 'income';
+                  // FIX: Cập nhật màu xanh/đỏ cho các loại giao dịch mang tính chất thu/chi
+                  const isIncomeFlow = ['income', 'investment_return'].includes(tx.transaction_type);
+
                   const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓' };
                   const walletName = rawWallets.find(w => w.wallet_id === tx.wallet_id)?.name || 'Ví ẩn';
 
@@ -347,8 +348,8 @@ export default function Dashboard() {
                           <p className="text-xs text-gray-500 mt-0.5">{walletName} • {tx.date}</p>
                         </div>
                       </div>
-                      <div className={`font-semibold ${isIncome ? 'text-emerald-600' : 'text-slate-800'}`}>
-                        {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                      <div className={`font-semibold ${isIncomeFlow ? 'text-emerald-600' : 'text-slate-800'}`}>
+                        {isIncomeFlow ? '+' : '-'}{formatCurrency(tx.amount)}
                       </div>
                     </div>
                   );
