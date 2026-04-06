@@ -332,6 +332,9 @@ def chat_with_ai(
         bot_reply = res_text
 
         # 4. XỬ LÝ FUNCTION CALLING (BẮT ACTION TỪ AI)
+        action_type = None
+        extracted_txs = []
+
         json_match = re.search(r'```json\n(.*?)\n```', res_text, re.DOTALL)
         if json_match:
             try:
@@ -339,35 +342,20 @@ def chat_with_ai(
                 if action_data.get("action") == "add_transaction":
                     raw_data = action_data.get("data")
 
-                    # Ép kiểu dữ liệu về dạng Mảng (List) để xử lý một hoặc nhiều giao dịch
-                    tx_list = []
+                    # Ép kiểu dữ liệu về dạng Mảng (List)
                     if isinstance(raw_data, dict):
-                        tx_list = [raw_data]  # Nếu AI trả 1 object -> Bọc nó vào mảng
+                        extracted_txs = [raw_data]
                     elif isinstance(raw_data, list):
-                        tx_list = raw_data  # Nếu AI trả mảng -> Giữ nguyên
+                        extracted_txs = raw_data
 
-                    # Duyệt qua từng giao dịch và lưu vào Database
-                    for tx_data in tx_list:
-                        new_tx = Transaction(
-                            user_id=current_user.user_id,
-                            wallet_id=tx_data["wallet_id"],
-                            category_id=tx_data["category_id"],
-                            amount=tx_data["amount"],
-                            transaction_type=tx_data["transaction_type"],
-                            note=tx_data.get("note", ""),
-                            date=datetime.utcnow().date()
-                        )
-                        db.add(new_tx)
-
-                    db.commit()  # Lưu tất cả cùng lúc
-
-                    # Đổi câu trả lời thành câu reply nằm trong JSON
-                    bot_reply = action_data.get("reply", "Đã lưu giao dịch thành công!")
-                    print(f"✅ AI đã tự động thêm {len(tx_list)} giao dịch vào DB!")
+                    # KHÔNG GỌI db.commit() Ở ĐÂY NỮA. CHỈ TRẢ DATA VỀ CHO FRONTEND.
+                    bot_reply = action_data.get("reply",
+                                                "Mình đã phân tích được các giao dịch. Bạn hãy kiểm tra và xác nhận bên dưới nhé!")
+                    action_type = "add_transaction"
+                    print(f"💡 AI đề xuất thêm {len(extracted_txs)} giao dịch (Đang chờ User xác nhận).")
             except Exception as e:
-                db.rollback()
-                print(f"Lỗi khi AI lưu giao dịch: {e}")
-                bot_reply = "Mình hiểu bạn muốn thêm giao dịch, nhưng có lỗi xảy ra khi lưu vào hệ thống. Vui lòng thử lại sau nhé!"
+                print(f"Lỗi khi parse JSON từ AI: {e}")
+                bot_reply = "Mình hiểu bạn muốn thêm giao dịch, nhưng có lỗi xảy ra khi phân tích dữ liệu. Vui lòng thử lại sau nhé!"
 
     except Exception as e:
         print(f"Lỗi gọi Gemini: {e}")
@@ -383,11 +371,14 @@ def chat_with_ai(
     }
     chat_collection.insert_one(bot_msg)
 
+    # Đóng gói thêm action và action_data để Frontend xử lý
     return {
         "status": "success",
         "data": {
             "reply": bot_reply,
-            "session_id": session_id
+            "session_id": session_id,
+            "action": action_type,
+            "action_data": extracted_txs
         }
     }
 
