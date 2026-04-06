@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Target, AlertTriangle, Plus, X, Loader2, Sparkles, TrendingUp, Trash2, Info } from 'lucide-react';
+import { Target, AlertTriangle, Plus, X, Loader2, Sparkles, TrendingUp, Trash2, Info, Wand2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axiosClient from '../../api/axiosClient';
-import CurrencyInput from '../../components/CurrencyInput'
+import CurrencyInput from '../../components/CurrencyInput';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as BarTooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+
+// Hàm parse tiền để đảm bảo an toàn khi xử lý số liệu
+const parseCurrency = (value) => {
+    if (!value) return 0;
+    return Number(value.toString().replace(/[^0-9]/g, ''));
+};
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // States cho Modal Thêm/Sửa Ngân sách
+  // States cho Modal Thêm/Sửa Ngân sách thủ công
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,9 +27,17 @@ export default function Budgets() {
     is_rollover: false
   });
 
-  // States cho Gợi ý AI (AI Recommendation)
+  // States cho Gợi ý AI (AI Recommendation từng danh mục)
   const [recommendation, setRecommendation] = useState(null);
   const [isFetchingRec, setIsFetchingRec] = useState(false);
+
+  // ==========================================
+  // STATES CHO AI SMART BUDGET TEMPLATE
+  // ==========================================
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false);
+  const [isFetchingSmart, setIsFetchingSmart] = useState(false);
+  const [smartData, setSmartData] = useState({ income: '', template_type: '50_30_20' });
+  const [smartPreview, setSmartPreview] = useState([]);
 
   // States cho Modal Biểu đồ Trend
   const [trendModal, setTrendModal] = useState({
@@ -36,7 +50,6 @@ export default function Budgets() {
   const fetchBudgets = async () => {
     try {
       const res = await axiosClient.get('/budgets/progress?period=monthly');
-      // res lúc này chính là { status: "success", data: [...] }
       const data = res.data || [];
       setBudgets(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -63,7 +76,6 @@ export default function Budgets() {
     fetchCategories();
   }, []);
 
-  // Gọi API Gợi ý AI mỗi khi người dùng chọn một Danh mục khác
   const handleCategoryChange = async (categoryId) => {
     setFormData({ ...formData, category_id: categoryId });
     setRecommendation(null);
@@ -72,7 +84,6 @@ export default function Budgets() {
     setIsFetchingRec(true);
     try {
       const res = await axiosClient.get(`/budgets/recommendation?category_id=${categoryId}`);
-      // res chính là { status: "success", data: { recommended_amount: ... } }
       setRecommendation(res.data);
     } catch (error) {
       console.error("Lỗi lấy gợi ý:", error);
@@ -94,7 +105,7 @@ export default function Budgets() {
 
     const payload = {
       category_id: Number(formData.category_id),
-      amount_limit: Number(formData.amount_limit),
+      amount_limit: parseCurrency(formData.amount_limit),
       period: "monthly",
       start_date: start_date,
       end_date: end_date,
@@ -138,7 +149,6 @@ export default function Budgets() {
       setTrendModal({ isOpen: true, budgetName: categoryName, data: [], isLoading: true });
       try {
           const res = await axiosClient.get(`/budgets/trend?category_id=${categoryId}&months=6`);
-          // Lấy thẳng res.data để đẩy vào biểu đồ
           setTrendModal(prev => ({
               ...prev,
               data: Array.isArray(res.data) ? res.data : [],
@@ -150,28 +160,102 @@ export default function Budgets() {
       }
   };
 
+  // ==========================================
+  // HÀM XỬ LÝ AI SMART BUDGET (FR-06)
+  // ==========================================
+  const handleGenerateSmartBudget = async (e) => {
+      e.preventDefault();
+      const incomeVal = parseCurrency(smartData.income);
+      if (!incomeVal || incomeVal <= 0) return toast.error("Vui lòng nhập mức thu nhập hợp lệ!");
+
+      setIsFetchingSmart(true);
+      const templateName = smartData.template_type === '50_30_20' ? 'Quy tắc 50/30/20' : 'Quy tắc 6 chiếc lọ';
+
+      try {
+          const res = await axiosClient.post('/ai/budget-template', {
+              income: incomeVal,
+              template_type: templateName
+          });
+          // Trả về JSON mảng ngân sách
+          const suggestedData = res.data?.data || res.data;
+          if (Array.isArray(suggestedData)) {
+              setSmartPreview(suggestedData);
+          } else {
+              toast.error("Dữ liệu AI trả về không đúng định dạng.");
+          }
+      } catch (error) {
+          toast.error("Lỗi AI: " + (error.response?.data?.detail || "Không thể tạo template lúc này"));
+      } finally {
+          setIsFetchingSmart(false);
+      }
+  };
+
+  const handleSaveSmartBudgets = async () => {
+      setIsSubmitting(true);
+      const date = new Date();
+      const start_date = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+      const end_date = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      try {
+          // Dùng Promise.all để gọi API Upsert đồng loạt
+          const promises = smartPreview.map(budget => {
+              return axiosClient.post('/budgets/', {
+                  category_id: budget.category_id,
+                  amount_limit: budget.amount_limit,
+                  period: "monthly",
+                  start_date: start_date,
+                  end_date: end_date,
+                  is_rollover: false
+              });
+          });
+
+          await Promise.all(promises);
+          toast.success(`Đã áp dụng thành công ${smartPreview.length} ngân sách!`);
+
+          // Reset Modal
+          setIsSmartModalOpen(false);
+          setSmartPreview([]);
+          setSmartData({ income: '', template_type: '50_30_20' });
+          fetchBudgets();
+
+      } catch (error) {
+          toast.error("Có lỗi xảy ra khi lưu một số ngân sách.");
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 lg:p-8 animate-fade-in">
       <div className="max-w-5xl mx-auto">
 
         {/* HEADER */}
-        <div className="bg-white px-6 py-4 lg:px-6 lg:py-6 lg:mb-8 rounded-none lg:rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center sticky top-0 z-10 lg:static">
+        <div className="bg-white px-6 py-4 lg:px-6 lg:py-6 lg:mb-8 rounded-none lg:rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sticky top-0 z-10 lg:static">
           <div>
             <h2 className="text-xl lg:text-2xl font-bold text-slate-800 flex items-center gap-2">
                 <Target className="text-indigo-600" /> Ngân sách tháng này
             </h2>
             <p className="text-gray-500 mt-1 hidden lg:block">Kiểm soát chi tiêu, làm chủ tài chính</p>
           </div>
-          <button
-             onClick={() => {
-                setFormData({ category_id: '', amount_limit: '', is_rollover: false });
-                setRecommendation(null);
-                setIsModalOpen(true);
-             }}
-             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 font-medium shadow-sm transition-colors"
-          >
-            <Plus size={20} /> <span className="hidden sm:inline">Tạo ngân sách</span>
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                 onClick={() => setIsSmartModalOpen(true)}
+                 className="flex-1 sm:flex-none bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-colors border border-indigo-100"
+              >
+                <Wand2 size={20} /> <span className="hidden sm:inline">AI Template</span>
+              </button>
+              <button
+                 onClick={() => {
+                    setFormData({ category_id: '', amount_limit: '', is_rollover: false });
+                    setRecommendation(null);
+                    setIsModalOpen(true);
+                 }}
+                 className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-medium shadow-sm transition-colors"
+              >
+                <Plus size={20} /> <span className="hidden sm:inline">Tạo thủ công</span>
+              </button>
+          </div>
         </div>
 
         {/* DANH SÁCH NGÂN SÁCH (TIẾN ĐỘ) */}
@@ -184,7 +268,10 @@ export default function Budgets() {
             <div className="text-center py-16 bg-white rounded-3xl border border-gray-100 text-gray-500 shadow-sm">
               <Target size={56} className="mx-auto text-indigo-200 mb-4" />
               <p className="text-lg font-medium text-slate-700">Chưa có ngân sách nào</p>
-              <p className="text-sm mt-1">Hãy thiết lập giới hạn chi tiêu để hệ thống gợi ý cho bạn nhé!</p>
+              <p className="text-sm mt-1 mb-6">Hãy thiết lập giới hạn chi tiêu để hệ thống gợi ý cho bạn nhé!</p>
+              <button onClick={() => setIsSmartModalOpen(true)} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-sm inline-flex items-center gap-2">
+                 <Wand2 size={18} /> Dùng AI tạo tự động
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -254,7 +341,94 @@ export default function Budgets() {
       </div>
 
       {/* ========================================== */}
-      {/* MODAL THÊM / CẬP NHẬT NGÂN SÁCH */}
+      {/* MODAL AI SMART BUDGET (FR-06) */}
+      {/* ========================================== */}
+      {isSmartModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
+             <div className="flex justify-between items-center p-5 lg:p-6 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white">
+                <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                   <Wand2 className="text-indigo-600" /> AI Tạo Ngân Sách
+                </h3>
+                <button onClick={() => { setIsSmartModalOpen(false); setSmartPreview([]); }} className="text-gray-400 hover:text-rose-500 transition-colors bg-white p-2 rounded-full shadow-sm">
+                  <X size={20} />
+                </button>
+             </div>
+
+             <div className="p-5 lg:p-6 overflow-y-auto flex-1">
+                 {smartPreview.length === 0 ? (
+                     <form onSubmit={handleGenerateSmartBudget} className="space-y-5">
+                         <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-sm text-indigo-800 leading-relaxed">
+                             <Sparkles size={18} className="inline mr-1 text-indigo-600" />
+                             AI sẽ tự động tính toán và phân bổ ngân sách vào các danh mục phù hợp dựa trên thu nhập và quy tắc tài chính bạn chọn.
+                         </div>
+
+                         <div>
+                             <label className="text-sm font-medium text-gray-700 block mb-1.5">Tổng thu nhập dự kiến (VNĐ)</label>
+                             <CurrencyInput
+                                 required
+                                 value={smartData.income}
+                                 onChange={(e) => setSmartData({...smartData, income: e.target.value})}
+                                 placeholder="VD: 20.000.000"
+                                 className="w-full bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none rounded-xl p-3 text-2xl font-bold text-slate-800"
+                             />
+                         </div>
+
+                         <div>
+                             <label className="text-sm font-medium text-gray-700 block mb-1.5">Quy tắc phân bổ</label>
+                             <select
+                                 value={smartData.template_type}
+                                 onChange={(e) => setSmartData({...smartData, template_type: e.target.value})}
+                                 className="w-full bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none rounded-xl p-3 font-medium text-slate-700 cursor-pointer"
+                             >
+                                 <option value="50_30_20">Quy tắc 50/30/20 (Thiết yếu - Linh hoạt - Tiết kiệm)</option>
+                                 <option value="6_jars">Quy tắc 6 chiếc lọ (55-10-10-10-10-5)</option>
+                             </select>
+                         </div>
+
+                         <button
+                             type="submit"
+                             disabled={isFetchingSmart}
+                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold transition-colors mt-2 shadow-sm shadow-indigo-200 disabled:opacity-70 flex justify-center items-center gap-2"
+                         >
+                             {isFetchingSmart ? <><Loader2 className="animate-spin" size={20} /> Đang tính toán...</> : 'Bắt đầu phân bổ'}
+                         </button>
+                     </form>
+                 ) : (
+                     <div className="space-y-4">
+                         <div className="flex items-center justify-between mb-2">
+                             <h4 className="font-bold text-slate-800">Kết quả phân bổ AI</h4>
+                             <button onClick={() => setSmartPreview([])} className="text-sm text-indigo-600 hover:underline font-medium">Tính toán lại</button>
+                         </div>
+                         <div className="space-y-3">
+                             {smartPreview.map((item, idx) => (
+                                 <div key={idx} className="p-4 border border-gray-100 bg-gray-50 rounded-2xl flex justify-between items-center">
+                                     <div>
+                                         <p className="font-bold text-slate-800">{item.category_name}</p>
+                                         <p className="text-xs text-gray-500 mt-1">{item.description}</p>
+                                     </div>
+                                     <div className="font-bold text-indigo-600 text-lg">
+                                         {formatCurrency(item.amount_limit)}
+                                     </div>
+                                 </div>
+                             ))}
+                         </div>
+                         <button
+                             onClick={handleSaveSmartBudgets}
+                             disabled={isSubmitting}
+                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold transition-colors mt-6 shadow-sm shadow-emerald-200 flex justify-center items-center gap-2"
+                         >
+                             {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <><CheckCircle size={20} /> Áp dụng và Lưu</>}
+                         </button>
+                     </div>
+                 )}
+             </div>
+           </div>
+         </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL THÊM / CẬP NHẬT NGÂN SÁCH (THỦ CÔNG) */}
       {/* ========================================== */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
@@ -288,7 +462,7 @@ export default function Budgets() {
                 </select>
               </div>
 
-              {/* KHU VỰC AI GỢI Ý */}
+              {/* KHU VỰC AI GỢI Ý LỊCH SỬ */}
               {isFetchingRec ? (
                   <div className="flex items-center gap-2 text-indigo-500 text-sm font-medium animate-pulse">
                       <Loader2 size={16} className="animate-spin" /> Đang phân tích lịch sử chi tiêu...
@@ -327,7 +501,6 @@ export default function Budgets() {
                 )}
               </div>
 
-              {/* NÚT TOGGLE CỘNG DỒN */}
               <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
                   <div className="relative">
                       <input

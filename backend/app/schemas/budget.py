@@ -35,3 +35,5 @@ class BudgetProgressResponse(BaseModel):
     spent: Decimal
     remaining: Decimal
     warning: bool
+    safe_to_spend_per_day: float
+    is_rollover: bool

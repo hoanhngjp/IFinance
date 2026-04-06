@@ -46,6 +46,10 @@ class AIChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
 
+class AIBudgetTemplateRequest(BaseModel):
+    income: float
+    template_type: str  # Ví dụ: "50/30/20" hoặc "6_jars" (6 chiếc lọ)
+
 
 # ==========================================
 # 1. TÍNH NĂNG SMART INPUT (Hỗ trợ câu phức)
@@ -426,3 +430,61 @@ def get_chat_history(
         "status": "success",
         "data": history
     }
+
+
+@router.post("/budget-template")
+@limiter.limit("5/minute")
+def generate_budget_template(
+        request: Request,
+        req: AIBudgetTemplateRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    # 1. Lấy toàn bộ danh mục "Chi phí" (Expense) của user và hệ thống
+    categories = db.query(Category).filter(
+        Category.type == "expense",
+        (Category.user_id == current_user.user_id) | (Category.user_id == None)
+    ).all()
+
+    # Tạo danh sách rút gọn để mớm cho AI
+    cat_list = [{"id": c.category_id, "name": c.name} for c in categories]
+
+    # 2. Xây dựng Prompt ép kiểu JSON nghiêm ngặt
+    prompt = f"""
+    Bạn là một chuyên gia tài chính cá nhân. Người dùng có thu nhập hàng tháng là: {req.income:,.0f} VND.
+    Họ muốn phân bổ số tiền này thành các ngân sách chi tiêu theo quy tắc tài chính: '{req.template_type}'.
+    (Gợi ý: Nếu là 50/30/20 thì chia 50% Thiết yếu, 30% Linh hoạt, 20% Tiết kiệm/Đầu tư. Nếu là 6 chiếc lọ thì chia theo tỷ lệ 55-10-10-10-10-5).
+
+    Dưới đây là danh sách các danh mục chi tiêu (ID và Tên) đang có trong hệ thống của người dùng:
+    {json.dumps(cat_list, ensure_ascii=False)}
+
+    Nhiệm vụ:
+    Hãy tính toán số tiền cụ thể cho từng nhóm của quy tắc. Sau đó, CHỌN 1 category_id phù hợp nhất từ danh sách trên để đại diện cho nhóm đó.
+
+    YÊU CẦU BẮT BUỘC: 
+    - Chỉ trả về duy nhất 1 mảng JSON, không có định dạng markdown ```json, không có text thừa.
+    - Định dạng: [ {{"category_id": int, "category_name": str, "amount_limit": float, "description": "Lý do ngắn gọn"}} ]
+    """
+
+    try:
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                temperature=0.2  # Temperature thấp để AI trả về toán học chính xác, không lan man
+            )
+        )
+
+        # 3. Parse JSON từ AI
+        suggested_budgets = json.loads(response.text.strip())
+
+        return {
+            "status": "success",
+            "message": f"AI đã gợi ý ngân sách theo quy tắc {req.template_type}",
+            "data": suggested_budgets
+        }
+
+    except Exception as e:
+        print(f"Lỗi AI Budget Template: {e}")
+        raise HTTPException(status_code=500, detail="Không thể tạo gợi ý ngân sách lúc này. Vui lòng thử lại!")
