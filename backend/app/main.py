@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.services.subscription_worker import process_due_subscriptions
@@ -42,6 +44,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(wallet.router, prefix="/api/v1/wallets", tags=["Wallets"])

@@ -20,6 +20,10 @@ import uuid
 from datetime import datetime
 from app.db.mongodb import chat_collection
 
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 # Load file .env và cấu hình API Key cho Gemini
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -27,6 +31,8 @@ if not api_key:
     raise RuntimeError("Chưa cấu hình GEMINI_API_KEY trong file .env")
 
 genai.configure(api_key=api_key)
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 
@@ -46,7 +52,9 @@ class AIChatRequest(BaseModel):
 # Endpoint thực tế: POST /api/v1/ai/parse
 # ==========================================
 @router.post("/parse")
+@limiter.limit("10/minute")
 def parse_natural_language(
+        request: Request,
         req: AIParseRequest,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
@@ -162,8 +170,11 @@ def parse_natural_language(
 # Endpoint thực tế: POST /api/v1/ai/ocr
 # ==========================================
 @router.post("/ocr")
+@limiter.limit("5/minute")
 def ocr_receipt(
+        request: Request,
         file: UploadFile = File(...),
+        db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
     # 1. Kiểm tra file có phải là hình ảnh không
@@ -242,7 +253,9 @@ def ocr_receipt(
 # Endpoint thực tế: POST /api/v1/ai/chat
 # ==========================================
 @router.post("/chat")
+@limiter.limit("15/minute")
 def chat_with_ai(
+        request: Request,
         req: AIChatRequest,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
