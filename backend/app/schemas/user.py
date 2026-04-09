@@ -2,26 +2,15 @@ from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional
 from datetime import datetime
 
-# Schema cho input Đăng ký
+# ==========================================
+# SCHEMAS CHO AUTH (Đăng ký, Đăng nhập)
+# ==========================================
 class UserCreate(BaseModel):
-    username: str
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=6)
     full_name: Optional[str] = None
 
-# Schema cho Output trả về chung
-class UserResponse(BaseModel):
-    user_id: int
-    username: str
-    email: str
-    full_name: Optional[str] = None
-    is_active: bool
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# Schema cho Auth Token
 class Token(BaseModel):
     access_token: str
     refresh_token: str
@@ -33,6 +22,12 @@ class RefreshTokenRequest(BaseModel):
 class LogoutRequest(BaseModel):
     refresh_token: str
 
+class GoogleAuthRequest(BaseModel):
+    token: str  # Chuỗi ID Token do Google cấp từ Frontend
+
+# ==========================================
+# SCHEMAS CHO USER PROFILE
+# ==========================================
 class UserResponse(BaseModel):
     user_id: int
     username: str

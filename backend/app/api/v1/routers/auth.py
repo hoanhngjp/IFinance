@@ -1,27 +1,35 @@
+import os
+import string
+import random
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 
+# Bổ sung thư viện cho Google Auth
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 from app.db.database import get_db
 from app.models.user import User, TokenBlacklist
-from app.schemas.user import UserCreate, UserResponse, Token, RefreshTokenRequest, LogoutRequest
+from app.schemas.user import UserCreate, UserResponse, Token, RefreshTokenRequest, LogoutRequest, GoogleAuthRequest
 from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token, SECRET_KEY, \
     ALGORITHM
 from app.api.deps import get_current_user
 
 router = APIRouter()
 
+# Lấy Client ID từ biến môi trường (Bạn nhớ thêm GOOGLE_CLIENT_ID vào file .env nhé)
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com")
+
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    # 1. Kiểm tra Email hoặc Username đã tồn tại chưa
     if db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Email này đã được đăng ký.")
     if db.query(User).filter(User.username == user_in.username).first():
         raise HTTPException(status_code=400, detail="Username này đã tồn tại.")
 
-    # 2. Băm mật khẩu và lưu DB
     hashed_password = get_password_hash(user_in.password)
     new_user = User(
         username=user_in.username,
@@ -42,7 +50,6 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # OAuth2PasswordRequestForm mặc định nhận field 'username' (bạn có thể nhập email hoặc username vào đây)
     user = db.query(User).filter((User.username == form_data.username) | (User.email == form_data.username)).first()
 
     if not user or not verify_password(form_data.password, user.password_hash):
@@ -58,9 +65,70 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     }
 
 
+# ==========================================
+# API ĐĂNG NHẬP BẰNG GOOGLE OAUTH2
+# ==========================================
+@router.post("/google", response_model=Token)
+def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
+    try:
+        # 1. Xác minh Token với Google
+        idinfo = id_token.verify_oauth2_token(
+            req.token, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+
+        # 2. Lấy thông tin user từ Payload của Google
+        email = idinfo.get("email")
+        full_name = idinfo.get("name")
+
+        if not email:
+            raise HTTPException(status_code=400, detail="Token không chứa email hợp lệ")
+
+        # 3. Kiểm tra user trong Database
+        user = db.query(User).filter(User.email == email).first()
+
+        # Nếu user chưa tồn tại -> Tự động đăng ký
+        if not user:
+            # Sinh username duy nhất từ email
+            base_username = email.split("@")[0]
+            username = base_username
+            counter = 1
+            while db.query(User).filter(User.username == username).first():
+                username = f"{base_username}{counter}"
+                counter += 1
+
+            # Sinh mật khẩu ngẫu nhiên siêu dài và băm ra để đảm bảo an toàn Database
+            random_password = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+            hashed_password = get_password_hash(random_password)
+
+            user = User(
+                username=username,
+                email=email,
+                password_hash=hashed_password,
+                full_name=full_name
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # 4. Cấp cặp Token nội bộ của hệ thống IFinance
+        access_token = create_access_token(subject=user.user_id)
+        refresh_token = create_refresh_token(subject=user.user_id)
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Mã xác thực Google không hợp lệ hoặc đã hết hạn.")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi đăng nhập bằng Google: {str(e)}")
+
+
 @router.post("/refresh-token", response_model=Token)
 def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
-    # 1. Kiểm tra xem Token này có nằm trong Blacklist (đã logout) hay chưa?
     is_blacklisted = db.query(TokenBlacklist).filter(TokenBlacklist.token == request.refresh_token).first()
     if is_blacklisted:
         raise HTTPException(status_code=401, detail="Token đã bị thu hồi (Người dùng đã đăng xuất)")
@@ -77,7 +145,6 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
         if not user or not user.is_active:
             raise HTTPException(status_code=401, detail="User không tồn tại hoặc bị khóa")
 
-        # Cấp lại cặp token mới
         new_access_token = create_access_token(subject=user.user_id)
         new_refresh_token = create_refresh_token(subject=user.user_id)
 
@@ -90,25 +157,12 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Refresh token đã hết hạn hoặc không hợp lệ")
 
 
-@router.get("/me", response_model=dict)
-def read_users_me(current_user: User = Depends(get_current_user)):
-    return {
-        "status": "success",
-        "data": UserResponse.model_validate(current_user)
-    }
-
-
 @router.post("/logout", response_model=dict)
 def logout(
         request: LogoutRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user)  # Bắt buộc có token access để logout
 ):
-    """
-    API Đăng xuất an toàn tuyệt đối.
-    Thêm refresh_token hiện tại vào Blacklist để chặn cấp quyền về sau.
-    """
-    # Kiểm tra xem token đã có trong blacklist chưa để tránh lỗi duplicate
     exists = db.query(TokenBlacklist).filter(TokenBlacklist.token == request.refresh_token).first()
 
     if not exists:
