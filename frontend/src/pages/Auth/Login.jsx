@@ -1,38 +1,33 @@
 import React, { useState } from 'react';
 import { User, Lock, ArrowRight, Landmark, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import axiosClient from '../../api/axiosClient';
 
 export default function Login() {
-  // Thay email thành username vì Backend hỗ trợ login bằng cả Username hoặc Email
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Đăng nhập truyền thống
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      // Backend FastAPI OAuth2 yêu cầu dữ liệu dạng x-www-form-urlencoded
       const formData = new URLSearchParams();
-      formData.append('username', username); // Có thể nhập email hoặc username vào đây
+      formData.append('username', username);
       formData.append('password', password);
 
       const response = await axiosClient.post('/auth/login', formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
 
-      // Lưu Token vào Local Storage
       localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
-
-      // Chuyển hướng về trang chủ (Dashboard)
       navigate('/');
     } catch (err) {
       if (err.response && err.response.status === 401) {
@@ -40,6 +35,27 @@ export default function Login() {
       } else {
         setError("Không thể kết nối đến máy chủ.");
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Xử lý khi đăng nhập Google thành công
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    setIsLoading(true);
+    try {
+      // Gửi Google ID Token xuống Backend
+      const response = await axiosClient.post('/auth/google', {
+        token: credentialResponse.credential
+      });
+
+      // Lưu JWT Token nội bộ
+      localStorage.setItem('access_token', response.access_token);
+      localStorage.setItem('refresh_token', response.refresh_token);
+      navigate('/');
+    } catch (err) {
+      setError(err.response?.data?.detail || "Đăng nhập bằng Google thất bại.");
     } finally {
       setIsLoading(false);
     }
@@ -57,7 +73,6 @@ export default function Login() {
           <p className="text-gray-500 mt-2 text-center text-sm">Quản lý tài chính cá nhân thông minh</p>
         </div>
 
-        {/* Hiển thị lỗi */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 text-sm">
             <AlertCircle size={16} />
@@ -69,7 +84,6 @@ export default function Login() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Email hoặc Username</label>
             <div className="relative">
-              {/* Thay icon Mail thành User cho đúng ngữ nghĩa */}
               <User size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
               <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
@@ -84,16 +98,40 @@ export default function Login() {
             </div>
             <div className="relative">
               <Lock size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="password" autocomplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
                 placeholder="••••••••" />
             </div>
           </div>
 
           <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold mt-6 flex items-center justify-center gap-2 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-70">
-            {isLoading ? "Đang đăng nhập..." : "Đăng nhập"} <ArrowRight size={18} />
+            {isLoading ? "Đang xử lý..." : "Đăng nhập"} <ArrowRight size={18} />
           </button>
         </form>
+
+        {/* Nút Đăng nhập bằng Google */}
+        <div className="mt-8">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-3 bg-white lg:bg-white bg-gray-50 text-gray-500">Hoặc đăng nhập bằng</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-center w-full">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Lỗi kết nối với Google.')}
+              useOneTap
+              theme="outline"
+              size="large"
+              width="100%"
+              text="signin_with"
+            />
+          </div>
+        </div>
 
         <p className="mt-8 text-center text-sm text-gray-600">
           Chưa có tài khoản? <Link to="/register" className="text-indigo-600 font-semibold hover:underline">Tạo ngay</Link>
