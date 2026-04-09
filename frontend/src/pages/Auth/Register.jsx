@@ -6,26 +6,79 @@ import axiosClient from '../../api/axiosClient';
 
 export default function Register() {
   const [formData, setFormData] = useState({ username: '', fullName: '', email: '', password: '' });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
+  const [globalError, setGlobalError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Đăng ký truyền thống
+  // Logic kiểm tra dữ liệu tuân thủ chuẩn Backend Pydantic
+  const validateField = (field, value) => {
+    if (field === 'username') {
+      if (!value.trim()) return 'Vui lòng nhập tên đăng nhập';
+      if (value.trim().length < 3) return 'Tên đăng nhập phải có ít nhất 3 ký tự';
+      if (/\s/.test(value)) return 'Tên đăng nhập không được chứa khoảng trắng';
+      return '';
+    }
+    if (field === 'fullName') {
+      if (!value.trim()) return 'Vui lòng nhập họ và tên';
+      if (value.trim().length < 2) return 'Họ và tên phải có ít nhất 2 ký tự';
+      return '';
+    }
+    if (field === 'email') {
+      if (!value.trim()) return 'Vui lòng nhập email';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) return 'Email không hợp lệ';
+      return '';
+    }
+    if (field === 'password') {
+      if (!value) return 'Vui lòng nhập mật khẩu';
+      if (value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
+      return '';
+    }
+    return '';
+  };
+
+  const handleChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+    if (globalError) setGlobalError('');
+
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    }
+  };
+
+  const handleBlur = (field, value) => {
+    setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
-    setError('');
-    setIsLoading(true);
+    setGlobalError('');
 
+    // Kiểm tra toàn bộ form trước khi gửi API
+    const newErrors = {
+      username: validateField('username', formData.username),
+      fullName: validateField('fullName', formData.fullName),
+      email: validateField('email', formData.email),
+      password: validateField('password', formData.password),
+    };
+
+    if (Object.values(newErrors).some(err => err !== '')) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       await axiosClient.post('/auth/register', {
-        username: formData.username,
-        email: formData.email,
+        username: formData.username.trim(),
+        email: formData.email.trim(),
         password: formData.password,
-        full_name: formData.fullName
+        full_name: formData.fullName.trim()
       });
 
       const loginData = new URLSearchParams();
-      loginData.append('username', formData.username);
+      loginData.append('username', formData.username.trim());
       loginData.append('password', formData.password);
 
       const loginResponse = await axiosClient.post('/auth/login', loginData, {
@@ -37,19 +90,19 @@ export default function Register() {
       navigate('/');
 
     } catch (err) {
-      if (err.response && err.response.data && err.response.data.detail) {
-        setError(err.response.data.detail);
+      if (err.response?.data?.detail) {
+        const errDetail = err.response.data.detail;
+        setGlobalError(typeof errDetail === 'string' ? errDetail : "Dữ liệu nhập vào chưa hợp lệ.");
       } else {
-        setError("Có lỗi xảy ra, vui lòng thử lại sau.");
+        setGlobalError("Có lỗi xảy ra, vui lòng thử lại sau.");
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Đăng nhập/Đăng ký Google
   const handleGoogleSuccess = async (credentialResponse) => {
-    setError('');
+    setGlobalError('');
     setIsLoading(true);
     try {
       const response = await axiosClient.post('/auth/google', {
@@ -60,7 +113,7 @@ export default function Register() {
       localStorage.setItem('refresh_token', response.refresh_token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.detail || "Đăng ký bằng Google thất bại.");
+      setGlobalError(err.response?.data?.detail || "Đăng ký bằng Google thất bại.");
     } finally {
       setIsLoading(false);
     }
@@ -78,10 +131,10 @@ export default function Register() {
           <p className="text-gray-500 mt-1 text-center text-sm">Bắt đầu hành trình quản lý tài chính</p>
         </div>
 
-        {error && (
+        {globalError && (
           <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 text-sm">
             <AlertCircle size={16} />
-            <span>{error}</span>
+            <span>{globalError}</span>
           </div>
         )}
 
@@ -90,45 +143,71 @@ export default function Register() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Tên đăng nhập (Username)</label>
             <div className="relative">
               <User size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="text" required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})}
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="nguyenvana" />
+              <input
+                type="text"
+                value={formData.username}
+                onChange={(e) => handleChange('username', e.target.value)}
+                onBlur={(e) => handleBlur('username', e.target.value)}
+                className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.username ? 'border-rose-500 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'} rounded-xl focus:ring-2 focus:bg-white transition-all outline-none`}
+                placeholder="nguyenvana"
+              />
             </div>
+            {errors.username && <p className="text-rose-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={14}/> {errors.username}</p>}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Họ và tên</label>
             <div className="relative">
               <User size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="text" required value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="Nguyễn Văn A" />
+              <input
+                type="text"
+                value={formData.fullName}
+                onChange={(e) => handleChange('fullName', e.target.value)}
+                onBlur={(e) => handleBlur('fullName', e.target.value)}
+                className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.fullName ? 'border-rose-500 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'} rounded-xl focus:ring-2 focus:bg-white transition-all outline-none`}
+                placeholder="Nguyễn Văn A"
+              />
             </div>
+            {errors.fullName && <p className="text-rose-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={14}/> {errors.fullName}</p>}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
             <div className="relative">
               <Mail size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="email@example.com" />
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange('email', e.target.value)}
+                onBlur={(e) => handleBlur('email', e.target.value)}
+                className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.email ? 'border-rose-500 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'} rounded-xl focus:ring-2 focus:bg-white transition-all outline-none`}
+                placeholder="email@example.com"
+              />
             </div>
+            {errors.email && <p className="text-rose-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={14}/> {errors.email}</p>}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Mật khẩu</label>
             <div className="relative">
               <Lock size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="password" required value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="••••••••" />
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleChange('password', e.target.value)}
+                onBlur={(e) => handleBlur('password', e.target.value)}
+                className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.password ? 'border-rose-500 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'} rounded-xl focus:ring-2 focus:bg-white transition-all outline-none`}
+                placeholder="••••••••"
+              />
             </div>
+            {errors.password && <p className="text-rose-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={14}/> {errors.password}</p>}
           </div>
 
-          <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold mt-6 flex justify-center items-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-70">
+          <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold mt-6 flex justify-center items-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-70 shadow-sm shadow-indigo-200">
             {isLoading ? "Đang xử lý..." : "Đăng ký"} <ArrowRight size={18} />
           </button>
         </form>
 
-        {/* Nút Đăng ký bằng Google */}
         <div className="mt-8">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -142,7 +221,7 @@ export default function Register() {
           <div className="mt-6 flex justify-center w-full">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
-              onError={() => setError('Lỗi kết nối với Google.')}
+              onError={() => setGlobalError('Lỗi kết nối với Google.')}
               useOneTap
               theme="outline"
               size="large"

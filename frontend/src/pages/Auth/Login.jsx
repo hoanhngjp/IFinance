@@ -7,16 +7,55 @@ import axiosClient from '../../api/axiosClient';
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [globalError, setGlobalError] = useState('');
+  const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Đăng nhập truyền thống
+  // Logic kiểm tra dữ liệu
+  const validateField = (field, value) => {
+    if (field === 'username') {
+      return value.trim() ? '' : 'Vui lòng nhập email hoặc username';
+    }
+    if (field === 'password') {
+      if (!value) return 'Vui lòng nhập mật khẩu';
+      if (value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
+      return '';
+    }
+    return '';
+  };
+
+  const handleChange = (field, value) => {
+    if (field === 'username') setUsername(value);
+    if (field === 'password') setPassword(value);
+
+    // Xóa lỗi toàn cục khi người dùng bắt đầu gõ lại
+    if (globalError) setGlobalError('');
+
+    // Nếu field đang có lỗi, kiểm tra realtime để xóa lỗi ngay khi người dùng gõ đúng
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    }
+  };
+
+  const handleBlur = (field, value) => {
+    setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
-    setIsLoading(true);
+    setGlobalError('');
 
+    // Kiểm tra lần cuối trước khi submit
+    const userErr = validateField('username', username);
+    const passErr = validateField('password', password);
+
+    if (userErr || passErr) {
+      setErrors({ username: userErr, password: passErr });
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const formData = new URLSearchParams();
       formData.append('username', username);
@@ -31,31 +70,27 @@ export default function Login() {
       navigate('/');
     } catch (err) {
       if (err.response && err.response.status === 401) {
-        setError("Sai tài khoản hoặc mật khẩu.");
+        setGlobalError("Sai tài khoản hoặc mật khẩu.");
       } else {
-        setError("Không thể kết nối đến máy chủ.");
+        setGlobalError("Không thể kết nối đến máy chủ.");
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Xử lý khi đăng nhập Google thành công
   const handleGoogleSuccess = async (credentialResponse) => {
-    setError('');
+    setGlobalError('');
     setIsLoading(true);
     try {
-      // Gửi Google ID Token xuống Backend
       const response = await axiosClient.post('/auth/google', {
         token: credentialResponse.credential
       });
-
-      // Lưu JWT Token nội bộ
       localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.detail || "Đăng nhập bằng Google thất bại.");
+      setGlobalError(err.response?.data?.detail || "Đăng nhập bằng Google thất bại.");
     } finally {
       setIsLoading(false);
     }
@@ -73,10 +108,10 @@ export default function Login() {
           <p className="text-gray-500 mt-2 text-center text-sm">Quản lý tài chính cá nhân thông minh</p>
         </div>
 
-        {error && (
+        {globalError && (
           <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 text-sm">
             <AlertCircle size={16} />
-            <span>{error}</span>
+            <span>{globalError}</span>
           </div>
         )}
 
@@ -85,10 +120,16 @@ export default function Login() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Email hoặc Username</label>
             <div className="relative">
               <User size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="Nhập email hoặc username" />
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => handleChange('username', e.target.value)}
+                onBlur={(e) => handleBlur('username', e.target.value)}
+                className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.username ? 'border-rose-500 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'} rounded-xl focus:ring-2 focus:bg-white transition-all outline-none`}
+                placeholder="Nhập email hoặc username"
+              />
             </div>
+            {errors.username && <p className="text-rose-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={14}/> {errors.username}</p>}
           </div>
 
           <div>
@@ -98,18 +139,24 @@ export default function Login() {
             </div>
             <div className="relative">
               <Lock size={18} className="absolute inset-y-0 left-4 top-3.5 text-gray-400" />
-              <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="••••••••" />
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => handleChange('password', e.target.value)}
+                onBlur={(e) => handleBlur('password', e.target.value)}
+                className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.password ? 'border-rose-500 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'} rounded-xl focus:ring-2 focus:bg-white transition-all outline-none`}
+                placeholder="••••••••"
+              />
             </div>
+            {errors.password && <p className="text-rose-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={14}/> {errors.password}</p>}
           </div>
 
-          <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold mt-6 flex items-center justify-center gap-2 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-70">
+          <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold mt-6 flex items-center justify-center gap-2 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-70 shadow-sm shadow-indigo-200">
             {isLoading ? "Đang xử lý..." : "Đăng nhập"} <ArrowRight size={18} />
           </button>
         </form>
 
-        {/* Nút Đăng nhập bằng Google */}
         <div className="mt-8">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -123,7 +170,7 @@ export default function Login() {
           <div className="mt-6 flex justify-center w-full">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
-              onError={() => setError('Lỗi kết nối với Google.')}
+              onError={() => setGlobalError('Lỗi kết nối với Google.')}
               useOneTap
               theme="outline"
               size="large"
