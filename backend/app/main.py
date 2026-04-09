@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.services.subscription_worker import process_due_subscriptions
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.routers import auth, wallet, category, transaction, debt, budget, ai, subscription, investment
+from app.api.v1.routers import auth, wallet, category, transaction, debt, budget, ai, subscription, investment, user
 
 # --- KHỞI TẠO SCHEDULER CHẠY NGẦM ---
 scheduler = BackgroundScheduler()
@@ -56,6 +56,7 @@ app.include_router(budget.router, prefix="/api/v1/budgets", tags=["Budgets"])
 app.include_router(ai.router, prefix="/api/v1/ai", tags=["AI Processing"])
 app.include_router(subscription.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
 app.include_router(investment.router, prefix="/api/v1/investments", tags=["Investments"])
+app.include_router(user.router, prefix="/api/v1/users", tags=["Users"])
 
 
 @app.get("/")
