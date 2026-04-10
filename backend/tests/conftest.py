@@ -22,3 +22,25 @@ def db_session():
         db.close()
         # Xóa bảng sau khi test xong
         Base.metadata.drop_all(bind=engine)
+
+from app.models.user import User
+from app.models.wallet_category import Category
+from app.core.security import get_password_hash
+
+# Helper: Sinh giả User
+@pytest.fixture
+def test_user(db_session):
+    u = User(username="test_user", email="test@a.com", password_hash=get_password_hash("123"), is_active=True)
+    db_session.add(u)
+    db_session.commit()
+    db_session.refresh(u)
+    return u
+
+# Helper: Sinh giả Category
+@pytest.fixture
+def test_category(db_session, test_user):
+    c = Category(name="Ăn uống", type="expense", user_id=test_user.user_id)
+    db_session.add(c)
+    db_session.commit()
+    db_session.refresh(c)
+    return c
