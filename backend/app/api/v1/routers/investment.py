@@ -23,6 +23,20 @@ def get_investment_analytics(timeframe: str = "1Y", db: Session = Depends(get_db
         "data": analytics_data
     }
 
+@router.get("/stock-price", response_model=dict)
+def get_realtime_stock_price(ticker: str, current_user: User = Depends(get_current_user)):
+    from app.services.stock_service import stock_service
+    price = stock_service.get_stock_price(ticker)
+    if price is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mã cổ phiếu này hoặc API lỗi.")
+    return {
+        "status": "success",
+        "data": {
+            "ticker": ticker.upper(),
+            "price": price
+        }
+    }
+
 @router.get("/{inv_id}", response_model=dict)
 def get_investment_detail(inv_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
