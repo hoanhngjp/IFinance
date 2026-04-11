@@ -23,9 +23,11 @@ Hệ thống đã được thiết lập tự động hóa Triển khai (Deploym
   - **Smart Bulk Import:** Trích xuất mảng dữ liệu khổng lồ bằng AI. Dán một đoạn Ghi chú (Note) chứa 10 giao dịch, AI sẽ tách chúng ra thành 10 dòng độc lập cực thông minh.
   - **OCR Hóa đơn:** Quét, đọc và trích xuất dữ liệu tự động từ ảnh chụp biên lai/hóa đơn.
   - **Chatbot RAG:** Trợ lý ảo hiểu ngữ cảnh tài chính của bạn, có khả năng tư vấn và tự động ghi nhận giao dịch thông qua *Function Calling*.
-- **Nhập liệu Hàng loạt (Bulk Import):**
+- **Nhập liệu Hàng loạt Cơ chế Thông minh (Smart Bulk Import):**
   - Hỗ trợ nhập trực tiếp File `.csv` / `.xlsx` (Excel).
-  - Web tự động bắt từ khóa (Fuzzy Matching) để ghép Cột, Map Danh mục và Map số tiền một cách chính xác tuyệt đối ngay trên Bảng Preview giao diện.
+  - Web tự động bắt từ khóa (Fuzzy Matching) để tự ghép Cột, Map Danh mục và Map Ví Tiền một cách chính xác.
+  - **Auto-Generation:** Nếu File chứa Danh mục lạ ("Trà Camm") hoặc Ví tiền mới ("BIDV"), hệ thống sẽ tự động cấu trúc lại Data và **tự khởi tạo mới (Auto-create)** đính kèm vào Database mà không bắt User phải hủy tải file để đi tạo bằng tay.
+  - **Auto Debt Tracking:** Tự động trích xuất Tên Chủ Nợ (Ví dụ "Vay anh Sơn"), ngay lập tức lập Hợp đồng Nợ (Debts) tương ứng và **Tự động Gạch Nợ** ngay trong lúc import vòng lặp.
 - **Ngân sách thông minh (Budgets):** Cảnh báo an toàn chi tiêu, tính năng cộng dồn (rollover) sang tháng sau.
 - **Tự động hóa (Subscriptions):** Auto-worker chạy ngầm (`APScheduler`) tự động trừ tiền các gói định kỳ tới hạn.
 - **Đầu tư & Nợ (Investments & Debts):** Tự động định giá và cập nhật Tỷ giá thời gian thực đối với Tiền điện tử (CoinGecko) & Cổ phiếu/Chứng khoán (vnstock Proxy Backend API). Quản lý chi tiết số lượng, tỷ suất sinh lời (ROI), phí/thuế, lịch sử trả nợ và biểu đồ phân bổ danh mục.

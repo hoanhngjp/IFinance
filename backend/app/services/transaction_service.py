@@ -5,7 +5,8 @@ from app.crud.crud_wallet import wallet as crud_wallet
 from app.crud.crud_category import category as crud_category
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionTransfer
-from app.models.enums import TransactionType, WalletType
+from app.models.enums import TransactionType, WalletType, DebtType
+from app.models.finance_modules import Debt, DebtRepayment
 
 class TransactionService:
     def get_paginated(
@@ -61,44 +62,93 @@ class TransactionService:
         db.refresh(new_tx)
         return new_tx
 
-    def create_bulk(self, db: Session, tx_list: list[TransactionCreate], user_id: int):
+    def create_bulk(self, db: Session, tx_list: list[TransactionCreate], user_id: int, ignore_spend_limit: bool = True):
         new_txs = []
         wallet_cache = {}
         category_cache = {}
 
         for tx_in in tx_list:
-            # Check or fetch wallet
-            if tx_in.wallet_id not in wallet_cache:
-                wallet = crud_wallet.get_by_user_id(db, user_id=user_id, wallet_id=tx_in.wallet_id)
-                if not wallet:
-                    raise ValueError(f"Không tìm thấy ví tiền ID {tx_in.wallet_id}")
-                wallet_cache[tx_in.wallet_id] = wallet
-            wallet = wallet_cache[tx_in.wallet_id]
+            # Check Wallet Dynamic Creation
+            is_dynamic_wallet = (tx_in.wallet_id < 0) and getattr(tx_in, 'new_wallet_name', None)
+            
+            if is_dynamic_wallet:
+                w_key = f"new_{tx_in.new_wallet_name.strip().lower()}"
+                if w_key not in wallet_cache:
+                    from app.models.wallet_category import Wallet
+                    new_wallet = Wallet(
+                        user_id=user_id,
+                        name=tx_in.new_wallet_name.strip(),
+                        type=WalletType.bank, # Default ngầm định là Bank cho gọn
+                        currency="VND",
+                        balance=0 # Có thể âm tùy ý nhờ Bulk logic
+                    )
+                    db.add(new_wallet)
+                    db.flush()
+                    wallet_cache[w_key] = new_wallet
+                
+                wallet = wallet_cache[w_key]
+                resolved_wallet_id = wallet.wallet_id
+            else:
+                if tx_in.wallet_id not in wallet_cache:
+                    wallet = crud_wallet.get_by_user_id(db, user_id=user_id, wallet_id=tx_in.wallet_id)
+                    if not wallet:
+                        raise ValueError(f"Không tìm thấy ví tiền ID {tx_in.wallet_id}")
+                    wallet_cache[tx_in.wallet_id] = wallet
+                
+                wallet = wallet_cache[tx_in.wallet_id]
+                resolved_wallet_id = wallet.wallet_id
 
-            # Check category
-            if tx_in.category_id not in category_cache:
-                category = crud_category.get_by_id_and_user(db, category_id=tx_in.category_id, user_id=user_id)
-                if not category and getattr(tx_in, 'category_id', None) is not None:
-                    sys_cat = crud_category.get_parent_category(db, parent_id=tx_in.category_id, user_id=user_id)
-                    if not sys_cat:
-                        raise ValueError(f"Không tìm thấy danh mục ID {tx_in.category_id}")
-                category_cache[tx_in.category_id] = True
+            # Check category Dynamic Creation
+            is_dynamic_cat = (tx_in.category_id < 0) and getattr(tx_in, 'new_category_name', None)
+
+            if is_dynamic_cat:
+                cat_key = f"new_{tx_in.new_category_name.strip().lower()}"
+                if cat_key not in category_cache:
+                    from app.models.wallet_category import Category
+                    new_cat = Category(
+                        user_id=user_id,
+                        name=tx_in.new_category_name.strip(),
+                        type=tx_in.transaction_type.value if hasattr(tx_in.transaction_type, 'value') else tx_in.transaction_type,
+                        icon="✨",
+                        parent_id=None
+                    )
+                    db.add(new_cat)
+                    db.flush()
+                    category_cache[cat_key] = new_cat
+                
+                category = category_cache[cat_key]
+                resolved_cat_id = category.category_id
+
+            else:
+                if tx_in.category_id not in category_cache:
+                    category = crud_category.get_by_id_and_user(db, category_id=tx_in.category_id, user_id=user_id)
+                    if not category and getattr(tx_in, 'category_id', None) is not None:
+                        sys_cat = crud_category.get_parent_category(db, parent_id=tx_in.category_id, user_id=user_id)
+                        if not sys_cat:
+                            raise ValueError(f"Không tìm thấy danh mục ID {tx_in.category_id}")
+                        category = sys_cat
+                    category_cache[tx_in.category_id] = category
+                
+                category = category_cache[tx_in.category_id]
+                resolved_cat_id = category.category_id
 
             # Check safe spend limit
-            if tx_in.transaction_type == TransactionType.expense and wallet.type != WalletType.credit:
-                if wallet.balance < tx_in.amount:
-                    raise ValueError(f"Ví '{wallet.name}' không đủ tiền cho khoản chi {tx_in.amount}")
+            if not ignore_spend_limit:
+                if tx_in.transaction_type == TransactionType.expense and wallet.type != WalletType.credit:
+                    if wallet.balance < tx_in.amount:
+                        raise ValueError(f"Ví '{wallet.name}' không đủ tiền cho khoản chi {tx_in.amount}")
 
             new_tx = Transaction(
                 user_id=user_id,
-                wallet_id=tx_in.wallet_id,
-                category_id=tx_in.category_id,
+                wallet_id=resolved_wallet_id,
+                category_id=resolved_cat_id,
                 amount=tx_in.amount,
                 date=tx_in.date,
                 transaction_type=tx_in.transaction_type,
                 note=tx_in.note,
                 ocr_data=tx_in.ocr_data
             )
+            db.add(new_tx)
             new_txs.append(new_tx)
 
             # Update cached wallet balance in memory
@@ -107,7 +157,51 @@ class TransactionService:
             elif tx_in.transaction_type == TransactionType.income:
                 wallet.balance += tx_in.amount
 
-        db.add_all(new_txs)
+            # --- TÍCH HỢP QUẢN LÝ NỢ (DEBT) ---
+            creditor = getattr(tx_in, 'creditor_name', None)
+            if creditor:
+                cat_name = category.name.lower()
+                is_lend = "cho vay" in cat_name
+                is_borrow = "đi vay" in cat_name
+                is_collect = "thu nợ" in cat_name
+                is_repay = "trả nợ" in cat_name
+
+                if is_lend or is_borrow:
+                    debt_type = DebtType.receivable if is_lend else DebtType.payable
+                    new_debt = Debt(
+                        user_id=user_id,
+                        creditor_name=creditor.strip(),
+                        type=debt_type,
+                        total_amount=tx_in.amount,
+                        remaining_amount=tx_in.amount,
+                        interest_rate=0,
+                        due_date=None,
+                        is_installment=False
+                    )
+                    db.add(new_debt)
+                
+                elif is_collect or is_repay:
+                    # Gạch nợ tự động bằng cách tìm hợp đồng nợ cũ theo Tên (Fuzzy match)
+                    target_debt = db.query(Debt).filter(
+                        Debt.user_id == user_id, 
+                        Debt.creditor_name.ilike(f"%{creditor.strip()}%"),
+                        Debt.remaining_amount > 0
+                    ).first()
+
+                    if target_debt:
+                        db.flush() # Flush để new_tx được SQLAlchemy gán ID (transaction_id)
+                        target_debt.remaining_amount -= tx_in.amount
+                        if target_debt.remaining_amount < 0:
+                            target_debt.remaining_amount = 0
+                            
+                        repayment = DebtRepayment(
+                            debt_id=target_debt.debt_id,
+                            transaction_id=new_tx.transaction_id,
+                            amount=tx_in.amount,
+                            date=tx_in.date
+                        )
+                        db.add(repayment)
+
         db.commit()
         return len(new_txs)
 

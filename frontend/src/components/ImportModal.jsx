@@ -16,11 +16,18 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
     const [pasteText, setPasteText] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     
-    // previewData is an array of objects matching TransactionBulkItem
     const [previewData, setPreviewData] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Lưu tạm danh mục để hiển thị cả Danh mục cũ lẫn Danh mục mới tự động
+    const [localCategories, setLocalCategories] = useState([]);
+    
+    // Tương tự cho Ví
+    const [localWallets, setLocalWallets] = useState([]);
 
     if (!isOpen) return null;
+
+
 
     // ==========================================
     // MODULE 1: AI SMART PASTE (TEXT -> JSON)
@@ -77,6 +84,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
          const dateKey = detectKey(['ngày', 'date', 'thời gian', 'time']);
          const catKey = detectKey(['danh mục', 'loại', 'category', 'nhóm']);
          const noteKey = detectKey(['nội dung', 'ghi chú', 'mô tả', 'note', 'diễn giải', 'chi tiết']);
+         const walletKey = detectKey(['phương thức', 'thanh toán', 'nguồn', 'ví', 'tài khoản']);
+         const creditorKey = detectKey(['người nợ', 'người', 'chủ nợ', 'ghi chú/người', 'chủ', 'vay']);
 
          if (!amountKey) {
              toast.error("Không tìm thấy cột Số tiền. Hãy chắc chắn tên cột có chữ 'tiền' hoặc 'amount'.");
@@ -89,6 +98,11 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
              catDict[c.name.toLowerCase()] = { id: c.id, type: c.type };
          });
          const defaultWalletId = wallets[0]?.wallet_id;
+         
+         const walletDict = {};
+         wallets.forEach(w => {
+             walletDict[w.name.toLowerCase()] = w.wallet_id;
+         });
 
          const mappedData = jsonData.map((row, index) => {
               // 1. Phân tích Số tiền
@@ -97,10 +111,10 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
 
               // 2. Phân tích Danh mục & Type
               const rawCat = row[catKey] ? String(row[catKey]).trim() : '';
-              let resolvedCatId = categoriesList[0]?.id; // Fallback
+              let resolvedCatId = null;
               let resolvedType = 'expense';
 
-              // Fuzzy match danh mục
+              // Thử Fuzzy match vào danh mục có sẵn
               for (const [catName, catInfo] of Object.entries(catDict)) {
                   if (rawCat.toLowerCase().includes(catName) || catName.includes(rawCat.toLowerCase())) {
                       resolvedCatId = catInfo.id;
@@ -109,20 +123,35 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
                   }
               }
 
+              // 2.5 Phân tích Nguồn tiền (Wallet)
+              const rawWallet = (walletKey && row[walletKey]) ? String(row[walletKey]).trim() : '';
+              let resolvedWalletId = null;
+              
+              if (rawWallet) {
+                  for (const [wName, wId] of Object.entries(walletDict)) {
+                      if (rawWallet.toLowerCase().includes(wName) || wName.includes(rawWallet.toLowerCase())) {
+                          resolvedWalletId = wId;
+                          break;
+                      }
+                  }
+              }
+
+              // 2.8 Phân tích Người Nợ (Creditor)
+              const rawCreditor = (creditorKey && row[creditorKey]) ? String(row[creditorKey]).trim() : '';
+
               // 3. Phân tích Ngày
               let parsedDate = new Date().toISOString().split('T')[0];
               if (row[dateKey]) {
-                  // Đề phòng format DD/MM/YYYY của Excel
-                  let dStr = String(row[dateKey]);
-                  if (dStr.includes('/')) {
-                      const parts = dStr.split('/');
-                      if (parts.length === 3) {
-                          // JS mặc định YYYY-MM-DD
-                          parsedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                      }
+                  let dStr = String(row[dateKey]).trim();
+                  // Regex match \d{1,2} [/\-\.] \d{1,2} [/\-\.] \d{4}
+                  const dateMatch = dStr.match(/(\d{1,2})[/\\\-\.]+(\d{1,2})[/\\\-\.]+(\d{4})/);
+                  if (dateMatch) {
+                      const day = dateMatch[1].padStart(2, '0');
+                      const month = dateMatch[2].padStart(2, '0');
+                      const year = dateMatch[3];
+                      parsedDate = `${year}-${month}-${day}`;
                   } else {
-                      // Format chuẩn YYYY-MM-DD hoặc YYYY/MM/DD
-                      parsedDate = new Date(dStr).toISOString().split('T')[0];
+                      try { parsedDate = new Date(dStr).toISOString().split('T')[0]; } catch(e){}
                   }
               }
 
@@ -131,14 +160,66 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
                   amount: parsedAmount,
                   transaction_type: resolvedType,
                   category_id: resolvedCatId,
-                  wallet_id: defaultWalletId,
+                  wallet_id: resolvedWalletId,
                   date: parsedDate,
-                  note: row[noteKey] ? String(row[noteKey]) : `Import từ dòng ${index+1}`
+                  note: row[noteKey] ? String(row[noteKey]) : `Import từ dòng ${index+1}`,
+                  creditor_name: rawCreditor,
+                  raw_category: rawCat,
+                  raw_wallet: rawWallet
               };
          });
+         
+         // 4. Giải quyết các Danh mục không Mapping được -> Auto sinh Danh mục mới
+         let tempCats = [...(categoriesList || [])];
+         let tempWallets = [...(wallets || [])];
+         let nextTempId = -1;
+         let nextTempWId = -1;
+         
+         const finalMappedData = mappedData.map(item => {
+             // 4.1 Auto sinh Category
+             if (item.category_id === null) {
+                 const catName = item.note.split(' - ')[0] || "Khác"; // fallback
+                 const actualName = item.raw_category || catName;
+                 
+                 // Kiểm tra nếu tên thực tế đã vừa được tạo trong tempCats chưa
+                 let existingTemp = tempCats.find(c => c.name.toLowerCase() === actualName.toLowerCase());
+                 if (!existingTemp) {
+                     existingTemp = {
+                         id: nextTempId--,
+                         name: actualName,
+                         type: item.transaction_type, // ngầm định
+                         icon: '✨',
+                         is_new: true
+                     };
+                     tempCats.push(existingTemp);
+                 }
+                 item.category_id = existingTemp.id;
+                 item.transaction_type = existingTemp.type;
+             }
+             
+             // 4.2 Auto sinh Wallet
+             if (item.wallet_id === null) {
+                 const wName = item.raw_wallet || "Ví Khác";
+                 let existingWTemp = tempWallets.find(w => w.name.toLowerCase() === wName.toLowerCase());
+                 if (!existingWTemp) {
+                     existingWTemp = {
+                         wallet_id: nextTempWId--,
+                         name: wName,
+                         type: 'bank',
+                         is_new: true
+                     };
+                     tempWallets.push(existingWTemp);
+                 }
+                 item.wallet_id = existingWTemp.wallet_id;
+             }
+             
+             return item;
+         });
 
-         setPreviewData(mappedData.filter(item => item.amount > 0)); // Bỏ qua những dòng rỗng / số tiền = 0
-         toast.success(`Đã quét thành công ${mappedData.length} dòng!`);
+         setLocalCategories(tempCats);
+         setLocalWallets(tempWallets);
+         setPreviewData(finalMappedData.filter(item => item.amount > 0)); // Bỏ qua những dòng rỗng / số tiền = 0
+         toast.success(`Đã quét thành công ${finalMappedData.length} dòng!`);
     };
 
     const handleFileUpload = (e) => {
@@ -200,6 +281,20 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
             rest.category_id = Number(rest.category_id);
             rest.wallet_id = Number(rest.wallet_id);
             rest.amount = Number(rest.amount);
+            
+            // Xử lý Danh mục mới
+            const selectedCat = localCategories.find(c => c.id === rest.category_id);
+            if (selectedCat && selectedCat.is_new) {
+                rest.new_category_name = selectedCat.name;
+            }
+            
+            // Xử lý Ví mới
+            const selectedW = localWallets.find(w => w.wallet_id === rest.wallet_id);
+            if (selectedW && selectedW.is_new) {
+                rest.new_wallet_name = selectedW.name;
+            }
+            
+            if (!rest.creditor_name) delete rest.creditor_name;
             return rest;
         });
 
@@ -320,7 +415,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
                                             <th className="px-4 py-3 font-semibold text-slate-600">Số Tiền (VND)</th>
                                             <th className="px-4 py-3 font-semibold text-slate-600 w-48">Danh mục</th>
                                             <th className="px-4 py-3 font-semibold text-slate-600 w-32">Nguồn tiền</th>
-                                            <th className="px-4 py-3 font-semibold text-slate-600 w-64">Ghi chú</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600 w-40">Người nợ</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600 w-48">Ghi chú</th>
                                             <th className="px-4 py-3 text-center"></th>
                                         </tr>
                                     </thead>
@@ -359,7 +455,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
                                                         onChange={(e) => handleUpdateRow(row._rowId, 'category_id', e.target.value)}
                                                         className="bg-gray-50 border border-gray-200 focus:border-indigo-400 rounded-lg px-2 py-1.5 outline-none w-full w-48 font-medium truncate"
                                                     >
-                                                        {categoriesList.filter(c => c.type === row.transaction_type).map(c => (
+                                                        {localCategories.filter(c => c.type === row.transaction_type).map(c => (
                                                             <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
                                                         ))}
                                                     </select>
@@ -370,18 +466,28 @@ export default function ImportModal({ isOpen, onClose, onSuccess, wallets, categ
                                                         onChange={(e) => handleUpdateRow(row._rowId, 'wallet_id', e.target.value)}
                                                         className="bg-gray-50 border border-gray-200 focus:border-indigo-400 rounded-lg px-2 py-1.5 outline-none w-32 font-medium truncate"
                                                     >
-                                                        {wallets.map(w => (
-                                                            <option key={w.wallet_id} value={w.wallet_id}>{w.name}</option>
+                                                        {localWallets.map(w => (
+                                                            <option key={w.wallet_id} value={w.wallet_id}>{w.is_new ? '✦ ' : ''}{w.name}</option>
                                                         ))}
                                                     </select>
                                                 </td>
                                                 <td className="px-4 py-2">
                                                     <input 
                                                         type="text" 
+                                                        value={row.creditor_name || ''} 
+                                                        onChange={(e) => handleUpdateRow(row._rowId, 'creditor_name', e.target.value)}
+                                                        placeholder="Tên..."
+                                                        className="bg-transparent border border-gray-200 focus:border-indigo-400 focus:bg-white rounded outline-none w-full px-2 py-1 text-sm font-semibold text-slate-800"
+                                                    />
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    <textarea 
                                                         value={row.note} 
                                                         onChange={(e) => handleUpdateRow(row._rowId, 'note', e.target.value)}
-                                                        placeholder="Ghi chú thêm..."
-                                                        className="bg-transparent border border-transparent focus:border-gray-200 focus:bg-white rounded outline-none w-full px-2 py-1"
+                                                        placeholder="Ghi chú nhỏ..."
+                                                        rows={2}
+                                                        title={row.note}
+                                                        className="bg-transparent border border-transparent focus:border-gray-200 focus:bg-white rounded outline-none w-full min-w-[200px] max-w-[300px] px-2 py-1 resize-y"
                                                     />
                                                 </td>
                                                 <td className="px-4 py-2 text-center">

@@ -111,9 +111,74 @@ def test_bulk_insert_transactions(db_session, test_user, test_category):
     # Kiểm chứng số dư cuối cùng được cộng dồn đúng 100k - 20k - 30k + 10k = 60000
     assert w1.balance == 60000
     
-    # Khi 1 dòng vi phạm nguyên tắc số dư -> Từ chối toàn bộ mảng
+    # Khi 1 dòng (Chi phí lớn) làm âm ví -> Được phép vượt rào mặc định ở chế độ Bulk
     tx_list_over = [
         TransactionCreate(wallet_id=w1.wallet_id, category_id=test_category.category_id, amount=70000, transaction_type=TransactionType.expense, date=date.today(), note="Nhập lố")
     ]
+    inserted_over = transaction_service.create_bulk(db_session, tx_list_over, test_user.user_id)
+    assert inserted_over == 1
+    assert w1.balance == -10000  # Số dư có thể rớt xuống âm do Bulk Import được bypass an toàn
+    
+    # Nếu Test tường minh cờ bypass = False
+    tx_list_block = [
+        TransactionCreate(wallet_id=w1.wallet_id, category_id=test_category.category_id, amount=50000, transaction_type=TransactionType.expense, date=date.today(), note="Bị block")
+    ]
     with pytest.raises(ValueError, match="không đủ tiền cho khoản chi"):
-        transaction_service.create_bulk(db_session, tx_list_over, test_user.user_id)
+        transaction_service.create_bulk(db_session, tx_list_block, test_user.user_id, ignore_spend_limit=False)
+
+# ===============================================
+# TC-07: Tự động khởi tạo Ví, Danh mục và Khoản nợ từ Bulk Import
+# ===============================================
+def test_bulk_insert_auto_generation(db_session, test_user):
+    from app.models.wallet_category import Category, Wallet
+    from app.models.finance_modules import Debt, DebtRepayment
+    
+    tx_list = [
+        # Giao dịch 1: Khởi tạo Ví "Ví Tiết Kiệm" và Danh mục "Lương thưởng"
+        TransactionCreate(
+            wallet_id=-1, new_wallet_name="Ví Tiết Kiệm",
+            category_id=-1, new_category_name="Lương thưởng",
+            amount=5000000, transaction_type=TransactionType.income, date=date.today(), note="Lương tháng mới"
+        ),
+        # Giao dịch 2: Sinh khoản Cho Vay (Nợ) mới do Danh mục "Cho vay"
+        TransactionCreate(
+            wallet_id=-1, new_wallet_name="Ví Tiết Kiệm", # Map lại ví đã sinh tạm ở Cache
+            category_id=-2, new_category_name="Khác - Cho vay",
+            amount=1000000, transaction_type=TransactionType.expense, date=date.today(), 
+            note="Cho anh Sơn mượn", creditor_name="Sơn"
+        )
+    ]
+    
+    inserted_count = transaction_service.create_bulk(db_session, tx_list, test_user.user_id)
+    assert inserted_count == 2
+    
+    # 1. Xác minh Wallet được tạo tự động
+    new_wallet = db_session.query(Wallet).filter(Wallet.user_id == test_user.user_id, Wallet.name == "Ví Tiết Kiệm").first()
+    assert new_wallet is not None
+    assert new_wallet.balance == 4000000  # 5m - 1m
+    
+    # 2. Xác minh Category
+    cat_salary = db_session.query(Category).filter(Category.name == "Lương thưởng").first()
+    assert cat_salary is not None
+    
+    # 3. Xác minh Nợ (Debt)
+    debt = db_session.query(Debt).filter(Debt.creditor_name == "Sơn").first()
+    assert debt is not None
+    assert debt.total_amount == 1000000
+    assert debt.remaining_amount == 1000000
+    
+    # 4. Xác minh Gạch nợ
+    tx_repay = [
+        TransactionCreate(
+            wallet_id=new_wallet.wallet_id,
+            category_id=-3, new_category_name="Khác - Thu nợ",
+            amount=500000, transaction_type=TransactionType.income, date=date.today(),
+            note="Sơn trả mượn", creditor_name="Sơn"
+        )
+    ]
+    transaction_service.create_bulk(db_session, tx_repay, test_user.user_id)
+    
+    db_session.refresh(debt)
+    db_session.refresh(new_wallet)
+    assert debt.remaining_amount == 500000
+    assert new_wallet.balance == 4500000

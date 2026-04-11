@@ -13,6 +13,9 @@ class TransactionBase(BaseModel):
     transaction_type: TransactionType
     note: Optional[str] = None
     ocr_data: Optional[Dict[str, Any]] = None
+    creditor_name: Optional[str] = Field(None, description="Tên Nợ/Chủ Nợ để tích hợp Import Hàng loạt (Debts)")
+    new_category_name: Optional[str] = Field(None, description="Tên danh mục mới nếu cần khởi tạo tự động trong Bulk Import")
+    new_wallet_name: Optional[str] = Field(None, description="Tên ví mới cần khởi tạo tự động")
 
     @field_validator('date', mode='before')
     @classmethod
