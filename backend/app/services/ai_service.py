@@ -56,6 +56,7 @@ class AIService:
         3. category_id: Tìm ID của danh mục phù hợp nhất trong danh sách trên.
         4. wallet_id: Tìm ID của ví được nhắc đến. Nếu người dùng không nhắc đến ví nào, hãy lấy ID của ví đầu tiên.
         5. note: Tóm tắt ghi chú ngắn gọn.
+        6. date: Trích xuất ngày giao dịch dưới định dạng YYYY-MM-DD. Nếu không nhắc thời gian, trả về ngày hôm nay: {datetime.utcnow().date()}. Nếu chỉ nhắc ngày/tháng (như 12/3), hãy lấy năm hiện tại là {datetime.utcnow().year}.
 
         Định dạng trả về mong muốn (Luôn chứa mảng "transactions"):
         {{
@@ -65,7 +66,8 @@ class AIService:
                     "transaction_type": "expense",
                     "category_id": 3,
                     "wallet_id": 1,
-                    "note": "Ăn phở"
+                    "note": "Ăn phở",
+                    "date": "{datetime.utcnow().date()}"
                 }}
             ]
         }}

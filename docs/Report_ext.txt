@@ -1,0 +1,81 @@
+ĐỒ ÁN CHUYÊN NGÀNH  
+Xây d ựng hệ thống qu ản lý tài chính cá nhân thông 
+minh tích h ợp AI/NLP  
+ 
+1. Mục tiêu đ ề tài 
+Đề tài hư ớng đến việc phát tri ển một hệ thống ph ần mềm hỗ trợ người dùng qu ản lý tài 
+chính cá nhân m ột cách hi ệu quả, thân thi ện và thông minh. Sinh viên c ần xây d ựng m ột 
+hệ thống cơ b ản với các ch ức năng t ối thiểu, đồng th ời được yêu c ầu mở rộng thêm các 
+chức năng nâng cao b ằng cách ứng dụng các k ỹ thuật, công ngh ệ Trí tu ệ nhân t ạo (AI) và 
+Xử lý ngôn ng ữ tự nhiên (NLP) nh ằm gia tăng tr ải nghi ệm ngư ời dùng.  
+Đây là m ột đề tài m ở, tạo điều kiện để sinh viên phát huy tư duy sáng t ạo, kỹ năng k ỹ thuật 
+và tinh th ần làm vi ệc nhóm. Vi ệc tích h ợp AI/NLP là b ắt buộc và là tiêu chí quan tr ọng để 
+đánh giá năng l ực và kh ả năng sáng t ạo của sinh viên.  
+Hình th ức thực hiện và th ời gian n ộp đồ án 
+1. Sinh viên làm vi ệc theo nhóm t ừ 2 – 4 thành viên , không ch ấp nhận làm đ ồ án cá 
+nhân.  
+2. Thời gian n ộp đồ án: 15/04/2026  
+• File đ ồ án đư ợc đặt tên theo qui ư ớc: MSSV_H ọ-tên_l ớp_ĐACN . Tên file ch ỉ 
+cần ghi MSSV và h ọ tên c ủa ngư ời đại diện nộp bài. Trong file ph ải ghi đ ầy đủ 
+thông tin c ủa các thành viên.  
+• Cuốn in ph ải có ch ữ ký sống của mỗi thành viên bên c ạnh tên.  
+Nguyên t ắc chấm đi ểm 
+Điểm của mỗi đồ án đư ợc xác đ ịnh theo thứ hạng tương đ ối. Đồ án có ch ất lượng tốt nhất 
+sẽ đạt điểm tối đa (10.0), các đ ồ án còn l ại được đánh giá gi ảm dần theo th ứ tự. Do đó, các 
+nhóm c ần chủ động bảo vệ ý tưởng và n ội dung công vi ệc trong th ời gian th ực hiện đồ án 
+của nhóm.  
+Quy đ ịnh về việc thực hiện đồ án 
+• Sinh viên đư ợc phép tích h ợp các mô hình ngôn ng ữ lớn (qua API ho ặc mã ngu ồn 
+mở) như m ột phần tính năng c ủa hệ thống (ví d ụ: chatbot, phân tích ngôn ng ữ tự 
+nhiên, tóm t ắt văn b ản,…).  
+• Tuyệt đối không đư ợc sử dụng các công c ụ AI để viết hộ mã ngu ồn, viết hộ báo cáo, 
+hoặc thay th ế hoàn toàn tư duy c ủa sinh viên.  
+• Mọi thành ph ần AI tích h ợp phải được giải thích rõ ràng trong ph ần trình bày và báo 
+cáo (bao g ồm: mô hình nào, cách g ọi API, cách x ử lý đầu vào/ra, chi phí,…).  
+Mọi Vi phạm sẽ bị trừ điểm ho ặc không đư ợc chấp nh ận tùy theo m ức độ (có kh ả 
+năng b ị 0 điểm).  
+2. Yêu c ầu bắt buộc (mức tối thiểu) 
+Phần mềm ph ải đáp ứng các ch ức năng cơ b ản sau:  
+• Quản lý thu chi cá nhân: nh ập, ch ỉnh sửa và xóa các kho ản thu và chi tiêu.  
+• Phân lo ại giao d ịch theo các danh m ục (ăn u ống, di chuy ển, giải trí, ti ết kiệm, …).  
+• Thống kê tr ực quan: bi ểu đồ thu – chi theo th ời gian, danh m ục. 
+• Tính toán s ố dư: Hi ển thị tổng thu, t ổng chi, s ố dư theo t ừng giai đo ạn. 
+• Hệ thống xác th ực ngư ời dùng (đăng ký, đăng nh ập). 
+Sinh viên đư ợc tự do lựa chọn công ngh ệ, nền tảng (web/mobile/desktop), ngôn ng ữ 
+lập trình và ki ến trúc h ệ thống.  
+3. Gợi ý m ở rộng (yêu c ầu tích h ợp AI/NLP)  
+3.1. Xử lí ngôn ng ữ tự nhiên (NLP)  
+• Nhập liệu bằng ngôn ng ữ tự nhiên, ví d ụ: “Hôm nay chi 50k ăn sáng” và h ệ thống 
+tự động trích xu ất và phân tích thông tin.  
+• Truy v ấn bằng ngôn ng ữ tự nhiên, ví d ụ: “Tôi đã chi bao nhiêu cho cà phê trong 
+tháng 12?”.  
+• Tích h ợp chatbot h ỗ trợ hỏi đáp thông tin tài chính.  
+3.2. Trí tu ệ nhân t ạo (AI)  
+• Phân tích và d ự đoán xu hư ớng chi tiêu cá nhân.  
+• Gợi ý kế hoạch tiết kiệm ho ặc cắt giảm chi tiêu.  
+• Phát hi ện bất thường trong chi tiêu (anomaly detection).  
+• Nhận diện thông tin t ừ hóa đơn qua qua hình ảnh (s ử dụng OCR ho ặc AI).  
+3.3. Các tính năng b ổ sung khác  
+• Đồng bộ dữ liệu trên nhi ều nền tảng (web/mobile).  
+• Tùy ch ỉnh giao di ện, báo cáo theo s ở thích ngư ời dùng.  
+• Gửi thông báo theo th ời gian ho ặc dựa trên hành vi chi tiêu.  
+4. Nền tảng tri ển khai  
+• Sử dụng hệ thống qu ản lý mã ngu ồn (Git) và có th ể triển khai th ử trên các n ền tảng 
+cloud  
+• Có th ể sử dụng các công c ụ mã ngu ồn mở như: 
+- Backend: FastAPI, Flask, Django,…  
+- Frontend: React, Flutter, Streamlit,…  
+- NLP: spaCy, HuggingFace, OpenAI API,…  
+- OCR: Tesseract, Google Vision API,…  
+5. Tiêu chí đánh giá và x ếp hạng 
+Đồ án đư ợc đánh giá theo thang đi ểm 10 và x ếp hạng theo m ức độ hoàn thi ện, sáng t ạo và 
+chất lượng tri ển khai.  
+Tiêu chí  Trọng số 
+Hoàn thi ện các ch ức năng b ắt buộc 30% 
+Giao di ện ngư ời dùng (Ũ/UI)  5% 
+TÍnh ổn định và hi ệu năng c ủa hệ thống 10% 
+TÍnh năng m ở rộng và kh ả năng ứng dụng th ực tế 20% 
+Ứng dụng AI/NLP hi ệu quả, sáng t ạo 25% 
+Hình th ức và n ội dung báo cáo đ ồ án 15% 
+ 
+ 

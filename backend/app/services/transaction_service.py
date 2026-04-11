@@ -61,6 +61,56 @@ class TransactionService:
         db.refresh(new_tx)
         return new_tx
 
+    def create_bulk(self, db: Session, tx_list: list[TransactionCreate], user_id: int):
+        new_txs = []
+        wallet_cache = {}
+        category_cache = {}
+
+        for tx_in in tx_list:
+            # Check or fetch wallet
+            if tx_in.wallet_id not in wallet_cache:
+                wallet = crud_wallet.get_by_user_id(db, user_id=user_id, wallet_id=tx_in.wallet_id)
+                if not wallet:
+                    raise ValueError(f"Không tìm thấy ví tiền ID {tx_in.wallet_id}")
+                wallet_cache[tx_in.wallet_id] = wallet
+            wallet = wallet_cache[tx_in.wallet_id]
+
+            # Check category
+            if tx_in.category_id not in category_cache:
+                category = crud_category.get_by_id_and_user(db, category_id=tx_in.category_id, user_id=user_id)
+                if not category and getattr(tx_in, 'category_id', None) is not None:
+                    sys_cat = crud_category.get_parent_category(db, parent_id=tx_in.category_id, user_id=user_id)
+                    if not sys_cat:
+                        raise ValueError(f"Không tìm thấy danh mục ID {tx_in.category_id}")
+                category_cache[tx_in.category_id] = True
+
+            # Check safe spend limit
+            if tx_in.transaction_type == TransactionType.expense and wallet.type != WalletType.credit:
+                if wallet.balance < tx_in.amount:
+                    raise ValueError(f"Ví '{wallet.name}' không đủ tiền cho khoản chi {tx_in.amount}")
+
+            new_tx = Transaction(
+                user_id=user_id,
+                wallet_id=tx_in.wallet_id,
+                category_id=tx_in.category_id,
+                amount=tx_in.amount,
+                date=tx_in.date,
+                transaction_type=tx_in.transaction_type,
+                note=tx_in.note,
+                ocr_data=tx_in.ocr_data
+            )
+            new_txs.append(new_tx)
+
+            # Update cached wallet balance in memory
+            if tx_in.transaction_type == TransactionType.expense:
+                wallet.balance -= tx_in.amount
+            elif tx_in.transaction_type == TransactionType.income:
+                wallet.balance += tx_in.amount
+
+        db.add_all(new_txs)
+        db.commit()
+        return len(new_txs)
+
     def update(self, db: Session, transaction_id: int, tx_in: TransactionUpdate, user_id: int) -> Transaction:
         tx = crud_transaction.get_by_id_and_user(db, transaction_id=transaction_id, user_id=user_id)
         if not tx:

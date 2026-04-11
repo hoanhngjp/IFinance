@@ -4,13 +4,28 @@
 
 ---
 
+## 🌟 Trải nghiệm Bản Thực Tế (Live Demo & Production)
+
+Hệ thống đã được thiết lập tự động hóa Triển khai (Deployment) với kiến trúc linh hoạt:
+- **Frontend App:** Đang chạy trực tiếp cực mượt [tại đây (Vercel)](https://i-finance-eosin.vercel.app/)
+- **Backend API:** FastAPI tích hợp JWT Auth được lưu trữ trên **Render**.
+- **Database Cluster:** 
+  - *PostgreSQL* (Giao dịch, Thông tin người dùng) chạy trên **Supabase/Neon**.
+  - *MongoDB Atlas* (Lịch sử Chatbot) vận hành lưu trữ phi quan hệ tốc độ cao.
+
+---
+
 ## ✨ Tính năng nổi bật (Features)
 
 - **Quản lý Thu / Chi linh hoạt:** Chuyển tiền nội bộ, quản lý đa ví, cấu trúc danh mục (category) đa tầng.
 - **Trợ lý AI Thông minh (Gemini Flash):**
   - **Smart Input:** Thêm giao dịch nhanh qua câu lệnh tự nhiên (VD: "Sáng nay đổ xăng 50k bằng tiền mặt").
+  - **Smart Bulk Import:** Trích xuất mảng dữ liệu khổng lồ bằng AI. Dán một đoạn Ghi chú (Note) chứa 10 giao dịch, AI sẽ tách chúng ra thành 10 dòng độc lập cực thông minh.
   - **OCR Hóa đơn:** Quét, đọc và trích xuất dữ liệu tự động từ ảnh chụp biên lai/hóa đơn.
   - **Chatbot RAG:** Trợ lý ảo hiểu ngữ cảnh tài chính của bạn, có khả năng tư vấn và tự động ghi nhận giao dịch thông qua *Function Calling*.
+- **Nhập liệu Hàng loạt (Bulk Import):**
+  - Hỗ trợ nhập trực tiếp File `.csv` / `.xlsx` (Excel).
+  - Web tự động bắt từ khóa (Fuzzy Matching) để ghép Cột, Map Danh mục và Map số tiền một cách chính xác tuyệt đối ngay trên Bảng Preview giao diện.
 - **Ngân sách thông minh (Budgets):** Cảnh báo an toàn chi tiêu, tính năng cộng dồn (rollover) sang tháng sau.
 - **Tự động hóa (Subscriptions):** Auto-worker chạy ngầm (`APScheduler`) tự động trừ tiền các gói định kỳ tới hạn.
 - **Đầu tư & Nợ (Investments & Debts):** Tự động định giá và cập nhật Tỷ giá thời gian thực đối với Tiền điện tử (CoinGecko) & Cổ phiếu/Chứng khoán (vnstock Proxy Backend API). Quản lý chi tiết số lượng, tỷ suất sinh lời (ROI), phí/thuế, lịch sử trả nợ và biểu đồ phân bổ danh mục.

@@ -83,3 +83,7 @@ htmlcov/
 *.db
 *.bak
 *.tmp
+*.xlsx
+*.pdf
+*.docx
+extract_docs.py

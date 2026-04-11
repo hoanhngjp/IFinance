@@ -1,0 +1,97 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)  
+Dự án: Hệ thống Qu ản lý Tài chính Cá nhân Thông minh ( IFinance ) 
+Phiên b ản: 1.0 (Official Release)  
+Ngày l ập: 20/01/2026  
+Mục tiêu:  Xây d ựng ứng dụng qu ản lý tài chính toàn di ện, giải quy ết bài toán dòng ti ền 
+phức tạp và ứng dụng AI đ ể tối ưu tr ải nghi ệm. 
+1. TỔNG QUAN & PH ẠM VI (SCOPE)  
+• Mục tiêu c ốt lõi:  Cung c ấp công c ụ giúp ngư ời dùng theo dõi dòng ti ền chính xác 
+(bao g ồm tiền mặt, nợ, đầu tư).  
+• Phương th ức nhập liệu (Hybrid Input):  
+o Thủ công (Manual):  Nhập liệu qua bi ểu mẫu truy ền thống để đảm bảo độ 
+chính xác tuy ệt đối (Bắt buộc). 
+o Thông minh (AI Assisted):  Hỗ trợ nhập liệu nhanh b ằng gi ọng nói ho ặc 
+văn b ản tự nhiên (Tính năng nâng cao).  
+2. CÔNG NGH Ệ & KI ẾN TRÚC (TECH STACK)  
+• Backend:  Python (FastAPI)  - Xử lý logic nghi ệp vụ và tích h ợp AI.  
+• Frontend:  ReactJS  - Giao di ện Web App chu ẩn Mobile -First (t ối ưu hi ển thị trên 
+điện tho ại). 
+• Database (Mô hình Hybrid):  
+o PostgreSQL:  Lưu d ữ liệu nghi ệp vụ có cấu trúc (User, Wallet, Transaction, 
+Debt, Investment).  
+o MongoDB:  Lưu d ữ liệu phi c ấu trúc (Log Chatbot, L ịch sử hành vi User, 
+Metadata hóa đơn).  
+• AI Services:  OpenAI API (NLP), Google Vision/Tesseract (OCR).  
+3. CHI TI ẾT CH ỨC NĂNG (FUNCTIONAL REQUIREMENTS)  
+PHÂN H Ệ 1: QU ẢN LÝ TÀI S ẢN & GIAO D ỊCH (CORE - 30%)  
+Đây là phân h ệ nền tảng, đ ảm bảo các ch ức năng cơ b ản theo yêu c ầu đề tài. 
+FR-01: Qu ản lý Đa Ví (Multi -Asset Wallets)  
+Hệ thống phân lo ại ví theo b ản chất tài chính:  
+1. Ví Thanh toán (Cash/Bank):  Tiền mặt, ATM. Dùng đ ể chi tiêu hàng ngày.  
+2. Ví Tín d ụng (Credit/BNPL):  Momo PayLater, ShopeePayLater, Th ẻ tín dụng. 
+o Cơ ch ế: Chi tiêu làm tăng Dư n ợ (Liability), không tr ừ tiền mặt ngay. 
+Thanh toán ví làm gi ảm Dư n ợ. 
+3. Ví Tích lũy (Asset/Saving):  Sổ tiết kiệm, Vàng, Ch ứng khoán.  
+FR-02: Qu ản lý Giao d ịch (Transactions)  
+• CRUD:  Thêm/S ửa/Xóa Thu - Chi (Nh ập tay qua Form).  
+• Danh m ục (Categories):  
+o Có sẵn bộ danh m ục chu ẩn. 
+o Cho phép User Tự tạo/Sửa/Xóa  danh m ục riêng.  
+o Hỗ trợ cấu trúc Cha - Con (VD: Ăn u ống -> Ăn sáng).  
+• Chuy ển tiền (Transfer):  Ghi nh ận luân chuy ển tiền giữa các ví (VD: Rút ti ền 
+ATM v ề Ví m ặt). 
+FR-03: Báo cáo & Th ống kê  
+• Dashboard t ổng quan: T ổng thu, T ổng chi, Tài s ản ròng (Net Worth).  
+• Biểu đồ: Cơ c ấu chi tiêu (Tròn), Xu hư ớng thu chi (C ột). 
+PHÂN H Ệ 2: QU ẢN LÝ DÒNG TI ỀN NÂNG CAO (ADVANCED - 20%)  
+Giải quy ết các bài toán th ực tế phức tạp. 
+FR-04: Qu ản lý N ợ & Vay (Debt & Loan Management)  
+• Vay & Cho vay (Cash Loans):  
+o Nhập tên ngư ời vay/ch ủ nợ -> Tự động trừ/cộng tiền ở Ví Thanh toán -> 
+Tạo kho ản nợ tương ứng. 
+• Trả góp & Tín d ụng (Installments):  
+o Hỗ trợ chuy ển đổi giao d ịch chi tiêu l ớn thành n ợ trả góp. 
+o Theo dõi ti ến độ trả nợ (Gốc + Lãi).  
+• Thanh toán n ợ (Repayment):  
+o Hỗ trợ trả từng ph ần. 
+o Logic:  Tiền trả gốc làm gi ảm nợ, Tiền lãi/phí ph ạt được ghi nh ận là Chi phí 
+(Expense).  
+FR-05: Qu ản lý Đ ầu tư (Investment)  
+• Ghi nh ận dòng ti ền chuy ển vào Ví Tích lũy (Đ ầu tư).  
+• Ghi nh ận lãi (Record Profit):  User nh ập tay s ố tiền lãi th ực nhận. 
+o Tùy ch ọn: Lãi v ề ví tiền mặt (Thu nh ập) ho ặc Lãi nh ập gốc (Lãi kép).  
+FR-06: T ự động hóa & K ế hoạch 
+• Subscription:  Quản lý các kho ản chi đ ịnh kỳ (Netflix, Ti ền nhà). H ỗ trợ AI phát 
+hiện từ lịch sử giao d ịch. 
+• Smart Budget:  Template ngân sách (50/30/20, 6 Chi ếc lọ). AI g ợi ý phân b ổ dựa 
+trên thu nh ập. 
+PHÂN H Ệ 3: TRÍ TU Ệ NHÂN T ẠO & NLP (AI CORE - 25%)  
+Điểm nh ấn công ngh ệ của đồ án. 
+FR-07: Nh ập liệu Thông minh (Smart Input NLP)  
+• Tính năng:  Hỗ trợ nhập liệu nhanh bên c ạnh nh ập thủ công.  
+• Input:  User nh ập/nói câu l ệnh ph ức hợp (VD: "Ăn trưa 50k ti ền mặt và mua áo 
+500k b ằng ShopeePayLater").  
+• AI xử lý: Tách câu l ệnh thành các giao d ịch riêng bi ệt, tự động đi ền thông tin vào 
+Form đ ể User xác nh ận và Lưu.  
+FR-08: Chatbot Tr ợ lý Tài chính (RAG)  
+• Hỏi đáp v ề lịch sử tài chính (VD: "Tháng trư ớc tiêu gì nhi ều nhất?"). 
+• Sử dụng MongoDB lưu ng ữ cảnh hội thoại để Chatbot hi ểu mạch câu chuy ện. 
+FR-09: OCR (Hóa đơn)  
+• Chụp ảnh hóa đơn -> Trích xu ất thông tin -> Điền vào Form giao d ịch nháp.  
+4. LU ỒNG NGHI ỆP VỤ QUAN TR ỌNG (BUSINESS RULES)  
+• Quy t ắc Ví Tín d ụng: Chi tiêu t ừ ví tín d ụng làm tăng n ợ, không làm gi ảm tiền 
+mặt. 
+• Quy t ắc Lãi su ất: Lãi vay và phí ph ạt là Chi phí (Expense), không đư ợc cộng vào 
+Nợ gốc. 
+• Quy t ắc Nh ập liệu: AI ch ỉ đóng vai trò "Tr ợ lý điền form" (Pre -fill), ngư ời dùng 
+có quy ền chỉnh sửa cuối cùng trư ớc khi lưu vào Database.  
+5. LỘ TRÌNH TRI ỂN KHAI (ROADMAP)  
+• Giai đo ạn 1 (Tu ần 1-4): Thiết kế Database (Postgres + Mongo). Code API Core 
+(Auth, Wallet, Transaction).  
+• Giai đo ạn 2 (Tu ần 5-8): Code Logic Nâng cao (N ợ, Trả góp, Đ ầu tư). Tích h ợp 
+OpenAI cho ph ần Nh ập liệu NLP.  
+• Giai đo ạn 3 (Tu ần 9-12): Phát tri ển Frontend (ReactJS), Dashboard. Hoàn thi ện 
+Chatbot & OCR.  
+• Giai đo ạn 4 (Tu ần 13-15): Testing toàn di ện dòng ti ền. Vi ết báo cáo & Slide b ảo 
+vệ. 
+ 

@@ -62,6 +62,25 @@ def create_transaction(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: Không thể xử lý giao dịch. Error: {str(e)}")
 
+@router.post("/bulk", response_model=dict, status_code=status.HTTP_201_CREATED)
+def create_bulk_transactions(
+        tx_list: list[TransactionCreate],
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    try:
+        inserted_count = transaction_service.create_bulk(db, tx_list, current_user.user_id)
+        return {
+            "status": "success",
+            "message": f"Đã nhập thành công {inserted_count} giao dịch hàng loạt",
+            "data": {"count": inserted_count}
+        }
+    except ValueError as ve:
+        status_c = 404 if "Không tìm thấy" in str(ve) else 400
+        raise HTTPException(status_code=status_c, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi nhập hàng loạt: {str(e)}")
+
 @router.put("/{transaction_id}", response_model=dict)
 def update_transaction(
         transaction_id: int,

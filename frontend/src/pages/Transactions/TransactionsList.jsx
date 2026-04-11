@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Trash2, Loader2, AlertTriangle, Edit2, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Filter, Trash2, Loader2, AlertTriangle, Edit2, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axiosClient from '../../api/axiosClient';
 import CurrencyInput from '../../components/CurrencyInput';
+import ImportModal from '../../components/ImportModal';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
@@ -15,6 +16,7 @@ const parseCurrency = (value) => {
 export default function TransactionsList() {
   const [transactions, setTransactions] = useState([]);
   const [walletMap, setWalletMap] = useState({});
+  const [walletsList, setWalletsList] = useState([]); // Needed for ImportModal
   const [categoryMap, setCategoryMap] = useState({});
   const [categoriesList, setCategoriesList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +42,7 @@ export default function TransactionsList() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     transaction_id: null,
     amount: '',
@@ -66,6 +69,7 @@ export default function TransactionsList() {
         const wMap = {};
         if (Array.isArray(walletsData)) {
             walletsData.forEach(w => { wMap[w.wallet_id] = w.name; });
+            setWalletsList(walletsData);
         }
         setWalletMap(wMap);
 
@@ -260,9 +264,17 @@ export default function TransactionsList() {
 
         {/* HEADER & FILTER */}
         <div className="bg-white p-5 lg:p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-5 mt-4 lg:mt-0">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">Lịch sử giao dịch</h2>
-            <p className="text-sm text-gray-500 mt-1">Quản lý và tra cứu các khoản thu chi của bạn</p>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Lịch sử giao dịch</h2>
+              <p className="text-sm text-gray-500 mt-1">Quản lý và tra cứu các khoản thu chi của bạn</p>
+            </div>
+            <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold shadow-sm transition-colors w-full sm:w-auto justify-center"
+            >
+               <Download size={18} /> Nhập dữ liệu tự động
+            </button>
           </div>
 
           <div className="flex flex-col xl:flex-row flex-wrap gap-4 w-full">
@@ -515,6 +527,15 @@ export default function TransactionsList() {
           </div>
         </div>
       )}
+
+      {/* MODAL NHẬP LIỆU HÀNG LOẠT */}
+      <ImportModal 
+          isOpen={isImportModalOpen} 
+          onClose={() => setIsImportModalOpen(false)} 
+          onSuccess={fetchTransactions}
+          wallets={walletsList}
+          categoriesList={categoriesList}
+      />
     </div>
   );
 }
