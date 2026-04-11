@@ -46,6 +46,7 @@ class Investment(Base):
     wallet_id = Column(Integer, ForeignKey("wallets.wallet_id"), nullable=False)
     name = Column(String(150), nullable=False)
     type = Column(SQLEnum(InvestmentType), nullable=False)
+    quantity = Column(Numeric(20, 8), nullable=False, default=1)
     principal_amount = Column(Numeric(15, 2), nullable=False)
     current_value = Column(Numeric(15, 2), nullable=True)
     total_passive_income = Column(Numeric(15, 2), default=0)

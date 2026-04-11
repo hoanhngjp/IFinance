@@ -8,6 +8,7 @@ class InvestmentBase(BaseModel):
     wallet_id: int
     name: str = Field(..., description="Tên tài sản (VD: Vàng SJC, Cổ phiếu FPT)")
     type: InvestmentType
+    quantity: Optional[Decimal] = Field(Decimal("1.0"), description="Số lượng tài sản nắm giữ")
     principal_amount: Decimal = Field(..., gt=0, description="Số vốn đầu tư ban đầu")
     start_date: Optional[date] = None
 

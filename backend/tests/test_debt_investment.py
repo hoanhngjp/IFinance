@@ -92,12 +92,14 @@ def test_investment_lifecycle(db_session, test_user):
         wallet_id=w_cash.wallet_id,
         name="Vàng SJC",
         type=InvestmentType.gold,
+        quantity=Decimal('2.5'),
         principal_amount=100000,
         fee=5000,
         tax=5000
     )
     new_inv = investment_service.create_investment(db_session, inv_in, test_user.user_id)
     assert new_inv.principal_amount == 100000
+    assert new_inv.quantity == Decimal('2.5')
     assert w_cash.balance == 390000
 
     # 2. Nhận cổ tức tiền mặt (TC-09)
