@@ -91,3 +91,29 @@ def test_update_and_delete_transaction(db_session, test_user, test_category):
     # Hệ thống hủy Bill hoàn toàn -> Số dư tự trả lại 30.000 về như cũ
     transaction_service.delete(db_session, tx.transaction_id, test_user.user_id)
     assert w1.balance == 50000
+
+# ===============================================
+# TC-06: Khớp lệnh Nhập liệu Hàng loạt (Bulk Insert)
+# ===============================================
+def test_bulk_insert_transactions(db_session, test_user, test_category):
+    w1 = wallet_service.create(db_session, WalletCreate(name="Salary Bank", type=WalletType.bank, initial_balance=100000, currency="VND"), test_user.user_id)
+    
+    tx_list = [
+        TransactionCreate(wallet_id=w1.wallet_id, category_id=test_category.category_id, amount=20000, transaction_type=TransactionType.expense, date=date.today(), note="Tx 1"),
+        TransactionCreate(wallet_id=w1.wallet_id, category_id=test_category.category_id, amount=30000, transaction_type=TransactionType.expense, date=date.today(), note="Tx 2"),
+        TransactionCreate(wallet_id=w1.wallet_id, category_id=test_category.category_id, amount=10000, transaction_type=TransactionType.income, date=date.today(), note="Tx 3")
+    ]
+    
+    # Bơm 1 chuỗi 3 giao dịch
+    inserted_count = transaction_service.create_bulk(db_session, tx_list, test_user.user_id)
+    assert inserted_count == 3
+    
+    # Kiểm chứng số dư cuối cùng được cộng dồn đúng 100k - 20k - 30k + 10k = 60000
+    assert w1.balance == 60000
+    
+    # Khi 1 dòng vi phạm nguyên tắc số dư -> Từ chối toàn bộ mảng
+    tx_list_over = [
+        TransactionCreate(wallet_id=w1.wallet_id, category_id=test_category.category_id, amount=70000, transaction_type=TransactionType.expense, date=date.today(), note="Nhập lố")
+    ]
+    with pytest.raises(ValueError, match="không đủ tiền cho khoản chi"):
+        transaction_service.create_bulk(db_session, tx_list_over, test_user.user_id)
