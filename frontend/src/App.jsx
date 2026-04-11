@@ -1,7 +1,35 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Outlet } from 'react-router-dom';
 import { PlusCircle, } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
+
+// Component cập nhật Title tự động theo URL
+function TitleUpdater() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const routeTitles = {
+      '/': 'Tổng quan | IFinance',
+      '/transactions': 'Giao dịch | IFinance',
+      '/add': 'Thêm giao dịch | IFinance',
+      '/debts': 'Vay nợ | IFinance',
+      '/investments': 'Đầu tư | IFinance',
+      '/subs': 'Gói định kỳ | IFinance',
+      '/ai-chat': 'Trợ lý AI | IFinance',
+      '/profile': 'Thông tin cá nhân | IFinance',
+      '/budgets': 'Ngân sách | IFinance',
+      '/wallets': 'Quản lý Ví | IFinance',
+      '/categories': 'Định mức Danh mục | IFinance',
+      '/login': 'Đăng nhập | IFinance',
+      '/register': 'Đăng ký | IFinance',
+    };
+
+    const title = routeTitles[location.pathname] || 'IFinance - Quản lý Tài chính';
+    document.title = title;
+  }, [location.pathname]);
+
+  return null;
+}
 
 // Import Components Layout
 import Sidebar from './components/Sidebar';
@@ -76,6 +104,7 @@ export default function App() {
       />
 
       <BrowserRouter>
+        <TitleUpdater />
         <Routes>
           {/* ==========================================
               NHÓM 1: AUTH ROUTES (KHÔNG CÓ SIDEBAR)
