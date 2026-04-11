@@ -201,12 +201,12 @@ def seed_data():
         inv_exist = db.query(Investment).filter(Investment.user_id == user.user_id).first()
         if not inv_exist:
             inv1 = Investment(user_id=user.user_id, wallet_id=wallet_bank.wallet_id, name="Vàng SJC",
-                              type=InvestmentType.gold, principal_amount=Decimal("85000000"),
+                              type=InvestmentType.gold, quantity=Decimal("1"), principal_amount=Decimal("85000000"),
                               current_value=Decimal("87000000"), total_passive_income=0,
                               start_date=date.today() - timedelta(days=30))
             inv2 = Investment(user_id=user.user_id, wallet_id=wallet_bank.wallet_id, name="Cổ phiếu FPT",
-                              type=InvestmentType.stock, principal_amount=Decimal("20000000"),
-                              current_value=Decimal("22000000"), total_passive_income=Decimal("500000"),
+                              type=InvestmentType.stock, quantity=Decimal("200"), principal_amount=Decimal("20000000"),
+                              current_value=Decimal("27000000"), total_passive_income=Decimal("500000"),
                               start_date=date.today() - timedelta(days=60))
             db.add_all([inv1, inv2])
             db.commit()
