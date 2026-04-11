@@ -2,7 +2,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const axiosClient = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,7 +35,8 @@ axiosClient.interceptors.response.use(
       if (refreshToken) {
         try {
           // Gọi API độc lập (axios thường) để tránh Loop interceptor
-          const res = await axios.post('http://127.0.0.1:8000/api/v1/auth/refresh', null, {
+          const backendUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+          const res = await axios.post(`${backendUrl}/auth/refresh`, null, {
             params: { refresh_token: refreshToken }
           });
           
