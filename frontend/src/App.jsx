@@ -35,6 +35,10 @@ function TitleUpdater() {
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 
+// Import Tutorial system
+import { UserProvider } from './contexts/UserContext';
+import { TutorialProvider } from './contexts/TutorialContext';
+
 // Import Pages
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
@@ -58,7 +62,7 @@ function DesktopHeader() {
 
   return (
     <div className="hidden lg:flex justify-end items-center px-8 py-4 bg-white/50 backdrop-blur-sm border-b border-gray-100 z-10 absolute top-0 w-full">
-      <Link to="/add" className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-700 flex items-center gap-2 text-sm">
+      <Link to="/add" className="tour-add-transaction-btn bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-700 flex items-center gap-2 text-sm">
         <PlusCircle size={18} /> Thêm giao dịch
       </Link>
     </div>
@@ -67,22 +71,27 @@ function DesktopHeader() {
 
 function MainLayout() {
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-slate-800">
-      <Sidebar />
+    // UserProvider remounts naturally on login/logout (route change in/out of
+    // MainLayout), so no manual fetchUser call is needed from Login.jsx.
+    <UserProvider>
+      <TutorialProvider>
+        <div className="flex h-screen bg-gray-50 font-sans text-slate-800">
+          <Sidebar />
 
-      {/* Cột chính hiển thị nội dung */}
-      <div className="flex-1 flex flex-col w-full lg:w-auto relative">
-        <DesktopHeader />
+          {/* Cột chính hiển thị nội dung */}
+          <div className="flex-1 flex flex-col w-full lg:w-auto relative">
+            <DesktopHeader />
 
-        {/* Nội dung trang thay đổi ở đây */}
-        <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
-          {/* <Outlet /> chính là nơi React Router sẽ render các trang con vào đây */}
-          <Outlet />
+            {/* Nội dung trang thay đổi ở đây */}
+            <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
+              <Outlet />
+            </div>
+
+            <BottomNav />
+          </div>
         </div>
-
-        <BottomNav />
-      </div>
-    </div>
+      </TutorialProvider>
+    </UserProvider>
   );
 }
 

@@ -34,10 +34,14 @@ class UserResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     is_active: bool
+    has_seen_tutorial: bool = False
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class UserPreferencesUpdate(BaseModel):
+    has_seen_tutorial: bool
 
 # Schema Cập nhật thông tin (Chỉ cho phép đổi tên)
 class UserUpdate(BaseModel):

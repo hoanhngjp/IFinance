@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.schemas.user import UserUpdate, UserChangePassword
+from app.schemas.user import UserUpdate, UserChangePassword, UserPreferencesUpdate
 from app.core.security import verify_password, get_password_hash
 
 class UserService:
@@ -20,5 +20,11 @@ class UserService:
         user.password_hash = get_password_hash(pass_in.new_password)
         db.commit()
         return True
+
+    def update_preferences(self, db: Session, user: User, prefs_in: UserPreferencesUpdate) -> User:
+        user.has_seen_tutorial = prefs_in.has_seen_tutorial
+        db.commit()
+        db.refresh(user)
+        return user
 
 user_service = UserService()
