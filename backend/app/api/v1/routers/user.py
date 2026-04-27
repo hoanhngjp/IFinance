@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.user import UserResponse, UserUpdate, UserChangePassword
+from app.schemas.user import UserResponse, UserUpdate, UserChangePassword, UserPreferencesUpdate
 from app.api.deps import get_current_user
 from app.services.user_service import user_service
 
@@ -28,6 +28,21 @@ def update_user_me(
         return {
             "status": "success",
             "message": "Cập nhật thông tin thành công",
+            "data": jsonable_encoder(UserResponse.model_validate(updated_user))
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+
+@router.patch("/me/preferences", response_model=dict)
+def update_user_preferences(
+    prefs_in: UserPreferencesUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        updated_user = user_service.update_preferences(db, current_user, prefs_in)
+        return {
+            "status": "success",
             "data": jsonable_encoder(UserResponse.model_validate(updated_user))
         }
     except Exception as e:

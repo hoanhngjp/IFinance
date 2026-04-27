@@ -11,6 +11,10 @@ class CategoryBase(BaseModel):
 class CategoryCreate(CategoryBase):
     pass
 
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    icon: Optional[str] = None
+
 class CategoryResponse(CategoryBase):
     category_id: int
     user_id: Optional[int] = None

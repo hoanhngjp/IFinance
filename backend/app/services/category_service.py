@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.crud.crud_category import category as crud_category
 from app.models.wallet_category import Category
-from app.schemas.category import CategoryCreate
+from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.models.transaction import Transaction
 
 class CategoryService:
@@ -27,6 +27,29 @@ class CategoryService:
 
     def get_all(self, db: Session, user_id: int):
         return crud_category.get_root_categories(db, user_id=user_id)
+
+    def update(self, db: Session, category_id: int, category_in: CategoryUpdate, user_id: int):
+        category = crud_category.get_by_id_and_user(db, category_id=category_id, user_id=user_id)
+        if not category:
+            raise ValueError("Không tìm thấy danh mục hoặc bạn không có quyền chỉnh sửa danh mục hệ thống.")
+
+        update_data = category_in.model_dump(exclude_unset=True)
+        if not update_data:
+            raise ValueError("Không có dữ liệu cập nhật")
+
+        if "name" in update_data:
+            new_name = (update_data.get("name") or "").strip()
+            if not new_name:
+                raise ValueError("Tên danh mục không được để trống")
+            category.name = new_name
+
+        if "icon" in update_data:
+            category.icon = update_data.get("icon") or category.icon
+
+        db.add(category)
+        db.commit()
+        db.refresh(category)
+        return category
 
     def delete(self, db: Session, category_id: int, user_id: int):
         category = crud_category.get_by_id_and_user(db, category_id=category_id, user_id=user_id)

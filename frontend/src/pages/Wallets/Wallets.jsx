@@ -251,6 +251,20 @@ export default function Wallets() {
     return <div className="flex justify-center items-center h-screen text-indigo-600"><Loader2 className="animate-spin" size={40} /></div>;
   }
 
+  const resetEditWalletData = () => setEditWalletData({
+  wallet_id: '',
+  name: '',
+  type: 'cash',
+  credit_limit: ''
+});
+
+ const resetAddWalletData = () => setAddWalletData({
+  wallet_id: '',
+  name: '',
+  type: 'cash',
+  credit_limit: ''
+});
+
   return (
     <div className="p-4 lg:p-8 bg-gray-50 min-h-screen animate-fade-in pb-24">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -267,7 +281,10 @@ export default function Wallets() {
                 <ArrowRightLeft size={18} /> Chuyển tiền
             </button>
             <button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => {
+                    setIsAddModalOpen(true);
+                    resetAddWalletData();
+                }}
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors"
             >
                 <Plus size={18} /> Thêm ví
@@ -455,7 +472,7 @@ export default function Wallets() {
               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
                  <Edit2 className="text-indigo-600" /> Cập nhật ví
               </h3>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
+              <button onClick={() => { setIsEditModalOpen(false); resetEditWalletData(); }} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
                 <X size={20} />
               </button>
             </div>

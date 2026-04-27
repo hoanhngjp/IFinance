@@ -1,15 +1,30 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
-from datetime import date, datetime
+from datetime import date as dt_date, datetime
 from decimal import Decimal
 from app.models.enums import TransactionType
+
+
+def normalize_date_value(v):
+    if isinstance(v, datetime):
+        return v.date()
+
+    if isinstance(v, str):
+        # Accept ISO datetime strings from clients and normalize to date.
+        if 'T' in v:
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00')).date()
+            except ValueError:
+                return v
+
+    return v
 
 
 class TransactionBase(BaseModel):
     wallet_id: int
     category_id: int
     amount: Decimal = Field(..., gt=0, description="Số tiền giao dịch (luôn dương)")
-    date: date
+    date: dt_date
     transaction_type: TransactionType
     note: Optional[str] = None
     ocr_data: Optional[Dict[str, Any]] = None
@@ -20,9 +35,7 @@ class TransactionBase(BaseModel):
     @field_validator('date', mode='before')
     @classmethod
     def parse_datetime_to_date(cls, v):
-        if isinstance(v, datetime):
-            return v.date()
-        return v
+        return normalize_date_value(v)
 
 
 class TransactionCreate(TransactionBase):
@@ -60,11 +73,16 @@ class TransactionTransfer(BaseModel):
     dest_wallet_id: int = Field(..., description="ID của ví được cộng tiền")
     amount: Decimal = Field(..., gt=0, description="Số tiền cần chuyển (phải > 0)")
     note: Optional[str] = "Chuyển tiền nội bộ"
-    date: date
+    date: dt_date
 
 
 class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = Field(None, gt=0, description="Số tiền cập nhật (nếu có, phải lớn hơn 0)")
     category_id: Optional[int] = None
     note: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[dt_date] = None
+
+    @field_validator('date', mode='before')
+    @classmethod
+    def parse_datetime_to_date(cls, v):
+        return normalize_date_value(v)

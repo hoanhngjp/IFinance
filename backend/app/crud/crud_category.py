@@ -2,9 +2,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.crud.base import CRUDBase
 from app.models.wallet_category import Category
-from app.schemas.category import CategoryCreate
+from app.schemas.category import CategoryCreate, CategoryUpdate
 
-class CRUDCategory(CRUDBase[Category, CategoryCreate, CategoryCreate]):
+class CRUDCategory(CRUDBase[Category, CategoryCreate, CategoryUpdate]):
     def get_by_id_and_user(self, db: Session, *, category_id: int, user_id: int) -> Optional[Category]:
         return db.query(Category).filter(
             Category.category_id == category_id,

@@ -1,11 +1,43 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Outlet } from 'react-router-dom';
 import { PlusCircle, } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
+// Component cập nhật Title tự động theo URL
+function TitleUpdater() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const routeTitles = {
+      '/': 'Tổng quan | IFinance',
+      '/transactions': 'Giao dịch | IFinance',
+      '/add': 'Thêm giao dịch | IFinance',
+      '/debts': 'Vay nợ | IFinance',
+      '/investments': 'Đầu tư | IFinance',
+      '/subs': 'Gói định kỳ | IFinance',
+      '/ai-chat': 'Trợ lý AI | IFinance',
+      '/profile': 'Thông tin cá nhân | IFinance',
+      '/budgets': 'Ngân sách | IFinance',
+      '/wallets': 'Quản lý Ví | IFinance',
+      '/categories': 'Định mức Danh mục | IFinance',
+      '/login': 'Đăng nhập | IFinance',
+      '/register': 'Đăng ký | IFinance',
+    };
+
+    const title = routeTitles[location.pathname] || 'IFinance - Quản lý Tài chính';
+    document.title = title;
+  }, [location.pathname]);
+
+  return null;
+}
+
 // Import Components Layout
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
+
+// Import Tutorial system
+import { UserProvider } from './contexts/UserContext';
+import { TutorialProvider } from './contexts/TutorialContext';
 
 // Import Pages
 import Login from './pages/Auth/Login';
@@ -30,7 +62,7 @@ function DesktopHeader() {
 
   return (
     <div className="hidden lg:flex justify-end items-center px-8 py-4 bg-white/50 backdrop-blur-sm border-b border-gray-100 z-10 absolute top-0 w-full">
-      <Link to="/add" className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-700 flex items-center gap-2 text-sm">
+      <Link to="/add" className="tour-add-transaction-btn bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-700 flex items-center gap-2 text-sm">
         <PlusCircle size={18} /> Thêm giao dịch
       </Link>
     </div>
@@ -39,22 +71,27 @@ function DesktopHeader() {
 
 function MainLayout() {
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-slate-800">
-      <Sidebar />
+    // UserProvider remounts naturally on login/logout (route change in/out of
+    // MainLayout), so no manual fetchUser call is needed from Login.jsx.
+    <UserProvider>
+      <TutorialProvider>
+        <div className="flex h-screen bg-gray-50 font-sans text-slate-800">
+          <Sidebar />
 
-      {/* Cột chính hiển thị nội dung */}
-      <div className="flex-1 flex flex-col w-full lg:w-auto relative">
-        <DesktopHeader />
+          {/* Cột chính hiển thị nội dung */}
+          <div className="flex-1 flex flex-col w-full lg:w-auto relative">
+            <DesktopHeader />
 
-        {/* Nội dung trang thay đổi ở đây */}
-        <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
-          {/* <Outlet /> chính là nơi React Router sẽ render các trang con vào đây */}
-          <Outlet />
+            {/* Nội dung trang thay đổi ở đây */}
+            <div className="flex-1 overflow-y-auto pb-20 lg:pb-6 lg:pt-16">
+              <Outlet />
+            </div>
+
+            <BottomNav />
+          </div>
         </div>
-
-        <BottomNav />
-      </div>
-    </div>
+      </TutorialProvider>
+    </UserProvider>
   );
 }
 
@@ -76,6 +113,7 @@ export default function App() {
       />
 
       <BrowserRouter>
+        <TitleUpdater />
         <Routes>
           {/* ==========================================
               NHÓM 1: AUTH ROUTES (KHÔNG CÓ SIDEBAR)

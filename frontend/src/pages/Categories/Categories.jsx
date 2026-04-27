@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, Plus, X, Loader2, FolderTree, ChevronRight, Search, Trash2 } from 'lucide-react';
+import { LayoutGrid, Plus, X, Loader2, FolderTree, ChevronRight, Search, Trash2, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axiosClient from '../../api/axiosClient';
 import EmojiPicker from 'emoji-picker-react';
@@ -13,6 +13,7 @@ export default function Categories() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
 
   // State Tìm kiếm/Lọc
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,6 +25,40 @@ export default function Categories() {
     parent_id: '',
     icon: '📦'
   });
+
+  const resetFormData = (type = activeTab) => {
+    setFormData({
+      name: '',
+      type,
+      parent_id: '',
+      icon: '📦'
+    });
+    setEditingCategory(null);
+    setShowEmojiPicker(false);
+  };
+
+  const openCreateModal = () => {
+    resetFormData(activeTab);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (e, category) => {
+    e.stopPropagation();
+    setEditingCategory(category);
+    setFormData({
+      name: category.name || '',
+      type: category.type || activeTab,
+      parent_id: category.parent_id ? String(category.parent_id) : '',
+      icon: category.icon || '📦'
+    });
+    setShowEmojiPicker(false);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetFormData(activeTab);
+  };
 
   const fetchCategories = async () => {
     try {
@@ -43,31 +78,39 @@ export default function Categories() {
   }, []);
 
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen && !editingCategory) {
       setFormData(prev => ({ ...prev, type: activeTab, parent_id: '' }));
       setShowEmojiPicker(false);
     }
-  }, [activeTab, isModalOpen]);
+  }, [activeTab, isModalOpen, editingCategory]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) return toast.error("Vui lòng nhập tên danh mục!");
+    const categoryName = formData.name.trim();
+    if (!categoryName) return toast.error("Vui lòng nhập tên danh mục!");
 
     setIsSubmitting(true);
-    const createPromise = axiosClient.post('/categories/', {
-      name: formData.name.trim(), type: formData.type, icon: formData.icon,
-      parent_id: formData.parent_id ? Number(formData.parent_id) : null
-    });
+    const submitPromise = editingCategory
+      ? axiosClient.put(`/categories/${editingCategory.category_id}`, {
+          name: categoryName,
+          icon: formData.icon
+        })
+      : axiosClient.post('/categories/', {
+          name: categoryName,
+          type: formData.type,
+          icon: formData.icon,
+          parent_id: formData.parent_id ? Number(formData.parent_id) : null
+        });
 
-    toast.promise(createPromise, {
-      loading: 'Đang tạo danh mục...', success: 'Tạo danh mục cá nhân thành công! 🎉',
-      error: (err) => `Lỗi: ${err.response?.data?.detail || 'Không thể tạo danh mục'}`
+    toast.promise(submitPromise, {
+      loading: editingCategory ? 'Đang cập nhật danh mục...' : 'Đang tạo danh mục...',
+      success: editingCategory ? 'Cập nhật danh mục thành công! ✏️' : 'Tạo danh mục cá nhân thành công! 🎉',
+      error: (err) => `Lỗi: ${err.response?.data?.detail || (editingCategory ? 'Không thể cập nhật danh mục' : 'Không thể tạo danh mục')}`
     });
 
     try {
-      await createPromise;
-      setIsModalOpen(false);
-      setFormData({ name: '', type: activeTab, parent_id: '', icon: '📦' });
+      await submitPromise;
+      closeModal();
       fetchCategories();
     } catch (error) { console.error(error); }
     finally { setIsSubmitting(false); }
@@ -138,7 +181,7 @@ export default function Categories() {
             <p className="text-gray-500 mt-1">Tùy chỉnh các nhóm thu chi theo cách của bạn</p>
           </div>
           <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={openCreateModal}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors"
           >
               <Plus size={18} /> Thêm mới
@@ -203,13 +246,22 @@ export default function Categories() {
                         </div>
                         {/* Nút Xóa Thẻ Cha (Chỉ hiện nếu là tự tạo) */}
                         {parent.user_id && (
-                             <button
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                              <button
+                                onClick={(e) => openEditModal(e, parent)}
+                                className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Sửa danh mục này"
+                              >
+                                <Pencil size={18} />
+                              </button>
+                              <button
                                 onClick={(e) => handleDelete(e, parent.category_id, parent.name)}
-                                className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                                 title="Xóa danh mục này"
-                             >
-                                 <Trash2 size={18} />
-                             </button>
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
                         )}
                     </div>
 
@@ -228,13 +280,22 @@ export default function Categories() {
 
                              {/* Nút Xóa Thẻ Con (Chỉ hiện nếu là tự tạo) */}
                              {sub.user_id && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover/sub:opacity-100">
                                 <button
-                                    onClick={(e) => handleDelete(e, sub.category_id, sub.name)}
-                                    className="p-1.5 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors opacity-0 group-hover/sub:opacity-100"
-                                    title="Xóa danh mục này"
+                                  onClick={(e) => openEditModal(e, sub)}
+                                  className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                  title="Sửa danh mục này"
                                 >
-                                    <Trash2 size={16} />
+                                  <Pencil size={16} />
                                 </button>
+                                <button
+                                  onClick={(e) => handleDelete(e, sub.category_id, sub.name)}
+                                  className="p-1.5 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Xóa danh mục này"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
                              )}
                            </div>
                          ))}
@@ -256,15 +317,16 @@ export default function Categories() {
 
             <div className="flex justify-between items-center p-5 lg:p-6 border-b border-gray-100">
               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
-                 <Plus className="text-indigo-600" /> Tạo danh mục mới
+                 {editingCategory ? <Pencil className="text-indigo-600" /> : <Plus className="text-indigo-600" />} {editingCategory ? 'Cập nhật danh mục' : 'Tạo danh mục mới'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
+              <button onClick={closeModal} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
                 <X size={20} />
               </button>
             </div>
 
             <div className="overflow-y-auto p-5 lg:p-6">
               <form onSubmit={handleSubmit} className="space-y-5">
+                {!editingCategory && (
                 <div className="flex bg-gray-100 p-1 rounded-xl">
                   <button
                     type="button"
@@ -281,6 +343,7 @@ export default function Categories() {
                     Thu nhập
                   </button>
                 </div>
+                )}
 
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">Tên danh mục <span className="text-rose-500">*</span></label>
@@ -294,6 +357,7 @@ export default function Categories() {
                   />
                 </div>
 
+                {!editingCategory && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">Trực thuộc (Không bắt buộc)</label>
                   <select
@@ -308,6 +372,7 @@ export default function Categories() {
                   </select>
                   <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1"><ChevronRight size={12}/> Để trống nếu đây là danh mục lớn.</p>
                 </div>
+                )}
 
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-2">Chọn Biểu tượng (Icon)</label>
@@ -334,7 +399,7 @@ export default function Categories() {
                 </div>
 
                 <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold transition-colors mt-4 shadow-sm shadow-indigo-200 disabled:opacity-70 flex justify-center items-center gap-2">
-                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Lưu danh mục'}
+                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingCategory ? 'Lưu thay đổi' : 'Lưu danh mục')}
                 </button>
               </form>
             </div>

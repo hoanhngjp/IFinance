@@ -12,6 +12,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
+    has_seen_tutorial = Column(Boolean, default=False, server_default='false', nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Các Relationships (Cấu hình cascade để xóa User là xóa sạch dữ liệu liên quan)

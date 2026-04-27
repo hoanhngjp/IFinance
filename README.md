@@ -28,6 +28,7 @@ Hệ thống đã được thiết lập tự động hóa Triển khai (Deploym
   - Web tự động bắt từ khóa (Fuzzy Matching) để tự ghép Cột, Map Danh mục và Map Ví Tiền một cách chính xác.
   - **Auto-Generation:** Nếu File chứa Danh mục lạ ("Trà Camm") hoặc Ví tiền mới ("BIDV"), hệ thống sẽ tự động cấu trúc lại Data và **tự khởi tạo mới (Auto-create)** đính kèm vào Database mà không bắt User phải hủy tải file để đi tạo bằng tay.
   - **Auto Debt Tracking:** Tự động trích xuất Tên Chủ Nợ (Ví dụ "Vay anh Sơn"), ngay lập tức lập Hợp đồng Nợ (Debts) tương ứng và **Tự động Gạch Nợ** ngay trong lúc import vòng lặp.
+- **Hướng dẫn tương tác cho người dùng mới (First-Time Tutorial):** Tour hướng dẫn tự động xuất hiện ngay sau khi tạo tài khoản mới, giới thiệu lần lượt các tính năng chính qua các bước có chú thích trực quan. Hỗ trợ cả Desktop và Mobile với bộ bước riêng biệt, tự động chuyển đổi khi resize cửa sổ. Trạng thái "đã xem" được đồng bộ lên Server (PATCH /users/me/preferences) với cơ chế retry 3× exponential backoff và localStorage làm cache lạc quan.
 - **Ngân sách thông minh (Budgets):** Cảnh báo an toàn chi tiêu, tính năng cộng dồn (rollover) sang tháng sau.
 - **Tự động hóa (Subscriptions):** Auto-worker chạy ngầm (`APScheduler`) tự động trừ tiền các gói định kỳ tới hạn.
 - **Đầu tư & Nợ (Investments & Debts):** Tự động định giá và cập nhật Tỷ giá thời gian thực đối với Tiền điện tử (CoinGecko) & Cổ phiếu/Chứng khoán (vnstock Proxy Backend API). Quản lý chi tiết số lượng, tỷ suất sinh lời (ROI), phí/thuế, lịch sử trả nợ và biểu đồ phân bổ danh mục.
@@ -36,7 +37,7 @@ Hệ thống đã được thiết lập tự động hóa Triển khai (Deploym
 
 ## 🛠 Tech Stack (Công nghệ sử dụng)
 
-- **Frontend:** ReactJS, Vite, Tailwind CSS, Recharts, Lucide Icons, Axios (Global Interceptors), React Hot Toast.
+- **Frontend:** ReactJS, Vite, Tailwind CSS, Recharts, Lucide Icons, Axios (Global Interceptors), React Hot Toast, react-joyride v3 (Lazy-loaded Interactive Tour).
 - **Backend:** Python, FastAPI, SQLAlchemy, Alembic, Pydantic, APScheduler, Pytest.
 - **Database:** PostgreSQL (Dữ liệu quan hệ lõi) & MongoDB (Lịch sử Chat AI).
 - **AI/Machine Learning:** Google Generative AI (Gemini).
@@ -70,8 +71,10 @@ hoanhngjp-IFinance/
     ├── src/
     │   ├── api/                  # Axios Client & Auto Token Refresh Interceptor
     │   ├── components/           # Reusable UI (Sidebar, CurrencyInput, Popup modal...)
+    │   ├── contexts/             # React Context (UserContext, TutorialContext)
     │   ├── pages/                # Màn hình chức năng (Auth, Dashboard, Transactions, AI Chat...)
-    │   ├── utils/                # Helper format định dạng (tiền tệ, thời gian)
+    │   ├── tutorial/             # Định nghĩa bước hướng dẫn Desktop & Mobile (tutorialSteps.js)
+    │   ├── utils/                # Helpers: format tiền tệ/thời gian, waitForElement, tutorialAnalytics
     │   ├── App.jsx               # Navigation & Routing system
     │   └── main.jsx              # File entry point của React
     ├── package.json              # Các thư viện NPM cần thiết

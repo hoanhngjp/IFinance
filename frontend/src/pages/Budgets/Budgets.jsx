@@ -225,7 +225,6 @@ export default function Budgets() {
       }
   };
 
-
   return (
     <div className="min-h-screen bg-gray-50 pb-20 lg:p-8 animate-fade-in">
       <div className="max-w-5xl mx-auto">
