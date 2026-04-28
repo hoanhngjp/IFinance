@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
@@ -48,8 +49,18 @@ async def ocr_receipt(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    valid_extensions = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
-    if file.content_type not in valid_extensions:
+    valid_content_types = {
+        "image/jpeg",
+        "image/png",
+        "image/jpg",
+        "image/webp",
+        "image/pjpeg",
+        "application/octet-stream",
+    }
+    valid_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    file_extension = Path(file.filename or "").suffix.lower()
+
+    if file.content_type not in valid_content_types and file_extension not in valid_extensions:
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file ảnh định dạng JPG, PNG, WEBP.")
 
     try:
