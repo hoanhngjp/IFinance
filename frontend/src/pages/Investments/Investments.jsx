@@ -7,6 +7,60 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 
 const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 const extractData = (res) => (res && Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []));
+const getToday = () => new Date().toISOString().split('T')[0];
+
+const getErrorMessage = (err, fallback = 'Lỗi hệ thống') => {
+  const detail = err?.response?.data?.detail;
+
+  if (typeof detail === 'string' && detail.trim()) return detail;
+
+  if (Array.isArray(detail)) {
+    const normalized = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+
+        const fieldPath = Array.isArray(item.loc)
+          ? item.loc.filter((segment) => segment !== 'body').join('.')
+          : '';
+
+        if (fieldPath && item.msg) return `${fieldPath}: ${item.msg}`;
+        return item.msg || '';
+      })
+      .filter(Boolean);
+
+    if (normalized.length > 0) return normalized.join(' | ');
+  }
+
+  if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
+    return detail.message;
+  }
+
+  return fallback;
+};
+
+const getDefaultBuyForm = () => ({
+  name: '',
+  type: 'stock',
+  quantity: '1',
+  principal_amount: '',
+  fee: '',
+  tax: '',
+  wallet_id: '',
+  start_date: getToday()
+});
+
+const getDefaultUpdateForm = () => ({ current_value: '' });
+
+const getDefaultSellForm = () => ({
+  selling_price: '',
+  fee: '',
+  tax: '',
+  wallet_id: '',
+  date: getToday()
+});
+
+const getDefaultPassiveForm = () => ({ amount: '', wallet_id: '', description: '' });
 
 // Màu sắc cho biểu đồ
 const COLORS = ['#4f46e5', '#eab308', '#06b6d4', '#10b981', '#f43f5e'];
@@ -29,10 +83,20 @@ export default function Investments() {
   const [assetQuantity, setAssetQuantity] = useState('');
 
   // Forms
-  const [buyForm, setBuyForm] = useState({ name: '', type: 'stock', quantity: '1', principal_amount: '', fee: '', tax: '', wallet_id: '', start_date: new Date().toISOString().split('T')[0] });
-  const [updateForm, setUpdateForm] = useState({ current_value: '' });
-  const [sellForm, setSellForm] = useState({ selling_price: '', fee: '', tax: '', wallet_id: '', date: new Date().toISOString().split('T')[0] });
-  const [passiveForm, setPassiveForm] = useState({ amount: '', wallet_id: '', description: '' });
+  const [buyForm, setBuyForm] = useState(getDefaultBuyForm());
+  const [updateForm, setUpdateForm] = useState(getDefaultUpdateForm());
+  const [sellForm, setSellForm] = useState(getDefaultSellForm());
+  const [passiveForm, setPassiveForm] = useState(getDefaultPassiveForm());
+
+  const closeModal = () => {
+    setModalType(null);
+    setSelectedInv(null);
+    setAssetQuantity('');
+    setBuyForm(getDefaultBuyForm());
+    setUpdateForm(getDefaultUpdateForm());
+    setSellForm(getDefaultSellForm());
+    setPassiveForm(getDefaultPassiveForm());
+  };
 
   const fetchData = async () => {
     try {
@@ -66,35 +130,50 @@ export default function Investments() {
 
   const handleBuy = async (e) => {
     e.preventDefault();
+
+    const quantity = Number(buyForm.quantity || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return toast.error('Số lượng phải lớn hơn 0');
+    }
+
+    const principalAmount = Number(buyForm.principal_amount || 0);
+    if (!Number.isFinite(principalAmount) || principalAmount <= 0) {
+      return toast.error('Vốn đầu tư phải lớn hơn 0');
+    }
+
     setIsSubmitting(true);
     const payload = {
       ...buyForm,
-      quantity: Number(buyForm.quantity || 1),
-      principal_amount: Number(buyForm.principal_amount),
+      quantity,
+      principal_amount: principalAmount,
       fee: Number(buyForm.fee || 0),
       tax: Number(buyForm.tax || 0),
       wallet_id: Number(buyForm.wallet_id)
     };
 
     const promise = axiosClient.post('/investments/', payload);
-    toast.promise(promise, { loading: 'Đang xử lý...', success: 'Đã mua tài sản! 📈', error: (err) => err.response?.data?.detail || 'Lỗi hệ thống' });
+    toast.promise(promise, { loading: 'Đang xử lý...', success: 'Đã mua tài sản! 📈', error: (err) => getErrorMessage(err, 'Lỗi hệ thống') });
     try {
       await promise;
-      setModalType(null);
-      setBuyForm({ name: '', type: 'stock', quantity: '1', principal_amount: '', fee: '', tax: '', wallet_id: '', start_date: new Date().toISOString().split('T')[0] });
+      closeModal();
       fetchData();
     } catch (error) { } finally { setIsSubmitting(false); }
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+
+    const currentValue = Number(updateForm.current_value || 0);
+    if (!Number.isFinite(currentValue) || currentValue <= 0) {
+      return toast.error('Giá trị thị trường phải lớn hơn 0');
+    }
+
     setIsSubmitting(true);
-    const promise = axiosClient.put(`/investments/${selectedInv.investment_id}/update`, { current_value: Number(updateForm.current_value) });
-    toast.promise(promise, { loading: 'Đang cập nhật...', success: 'Đã cập nhật giá trị thị trường! 📊', error: 'Lỗi cập nhật' });
+    const promise = axiosClient.put(`/investments/${selectedInv.investment_id}/update`, { current_value: currentValue });
+    toast.promise(promise, { loading: 'Đang cập nhật...', success: 'Đã cập nhật giá trị thị trường! 📊', error: (err) => getErrorMessage(err, 'Lỗi cập nhật') });
     try {
       await promise;
-      setModalType(null);
-      setAssetQuantity('');
+      closeModal();
       fetchData();
     } catch (error) { } finally { setIsSubmitting(false); }
   };
@@ -159,7 +238,7 @@ export default function Investments() {
       }
 
     } catch (e) {
-      const errMsg = e.response?.data?.detail || "Lỗi khi fetch API bên thứ 3. Kết nối mạng quá tải.";
+      const errMsg = getErrorMessage(e, 'Lỗi khi fetch API bên thứ 3. Kết nối mạng quá tải.');
       toast.error(errMsg);
     } finally {
       setIsFetchingPrice(false);
@@ -168,40 +247,50 @@ export default function Investments() {
 
   const handlePassiveIncome = async (e) => {
     e.preventDefault();
+
+    const amount = Number(passiveForm.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return toast.error('Số tiền nhận phải lớn hơn 0');
+    }
+
     setIsSubmitting(true);
     const payload = {
-      amount: Number(passiveForm.amount),
+      amount,
       wallet_id: Number(passiveForm.wallet_id),
       description: passiveForm.description || `Nhận lãi/cổ tức từ ${selectedInv.name}`
     };
 
     const promise = axiosClient.post(`/investments/${selectedInv.investment_id}/passive-income`, payload);
-    toast.promise(promise, { loading: 'Đang ghi nhận...', success: 'Đã nhận dòng tiền thụ động! 💵', error: 'Lỗi ghi nhận' });
+    toast.promise(promise, { loading: 'Đang ghi nhận...', success: 'Đã nhận dòng tiền thụ động! 💵', error: (err) => getErrorMessage(err, 'Lỗi ghi nhận') });
     try {
       await promise;
-      setModalType(null);
-      setPassiveForm({ amount: '', wallet_id: '', description: '' });
+      closeModal();
       fetchData();
     } catch (error) { } finally { setIsSubmitting(false); }
   };
 
   const handleSell = async (e) => {
     e.preventDefault();
+
+    const sellingPrice = Number(sellForm.selling_price || 0);
+    if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+      return toast.error('Giá bán phải lớn hơn 0');
+    }
+
     setIsSubmitting(true);
     const payload = {
       ...sellForm,
-      selling_price: Number(sellForm.selling_price),
+      selling_price: sellingPrice,
       fee: Number(sellForm.fee || 0),
       tax: Number(sellForm.tax || 0),
       wallet_id: Number(sellForm.wallet_id)
     };
 
     const promise = axiosClient.post(`/investments/${selectedInv.investment_id}/transactions`, payload);
-    toast.promise(promise, { loading: 'Đang khớp lệnh...', success: 'Đã chốt tài sản thành công! 💰', error: 'Lỗi bán tài sản' });
+    toast.promise(promise, { loading: 'Đang khớp lệnh...', success: 'Đã chốt tài sản thành công! 💰', error: (err) => getErrorMessage(err, 'Lỗi bán tài sản') });
     try {
       await promise;
-      setModalType(null);
-      setSellForm({ selling_price: '', fee: '', tax: '', wallet_id: '', date: new Date().toISOString().split('T')[0] });
+      closeModal();
       fetchData();
     } catch (error) { } finally { setIsSubmitting(false); }
   };
@@ -218,7 +307,7 @@ export default function Investments() {
         {/* HEADER */}
         <div className="bg-white px-6 py-4 lg:px-0 lg:py-0 lg:mb-6 flex justify-between items-center border-b lg:border-none sticky top-0 z-10 lg:static">
           <h2 className="text-xl lg:text-3xl font-bold text-slate-800">Danh mục Đầu tư</h2>
-          <button onClick={() => setModalType('buy')} className="bg-indigo-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
+          <button onClick={() => { setSelectedInv(null); setBuyForm(getDefaultBuyForm()); setModalType('buy'); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
             <Plus size={18} /> <span className="hidden md:inline">Mua tài sản</span>
           </button>
         </div>
@@ -309,9 +398,9 @@ export default function Investments() {
                     )}
 
                     <div className="mt-auto grid grid-cols-3 gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => { setSelectedInv(inv); setUpdateForm({ current_value: current }); setModalType('update'); }} className="py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-bold rounded-xl flex flex-col items-center justify-center gap-1"><RefreshCw size={14} /> Giá</button>
-                      <button onClick={() => { setSelectedInv(inv); setModalType('passive'); }} className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl flex flex-col items-center justify-center gap-1"><HandCoins size={14} /> Cổ tức</button>
-                      <button onClick={() => { setSelectedInv(inv); setSellForm({ ...sellForm, selling_price: current }); setModalType('sell'); }} className="py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl flex flex-col items-center justify-center gap-1"><CheckCircle2 size={14} /> Bán</button>
+                      <button onClick={() => { setSelectedInv(inv); setUpdateForm({ current_value: current.toString() }); setModalType('update'); }} className="py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-bold rounded-xl flex flex-col items-center justify-center gap-1"><RefreshCw size={14} /> Giá</button>
+                      <button onClick={() => { setSelectedInv(inv); setPassiveForm(getDefaultPassiveForm()); setModalType('passive'); }} className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl flex flex-col items-center justify-center gap-1"><HandCoins size={14} /> Cổ tức</button>
+                      <button onClick={() => { setSelectedInv(inv); setSellForm({ ...getDefaultSellForm(), selling_price: current.toString() }); setModalType('sell'); }} className="py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl flex flex-col items-center justify-center gap-1"><CheckCircle2 size={14} /> Bán</button>
                     </div>
                   </div>
                 )
@@ -327,7 +416,7 @@ export default function Investments() {
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-xl text-slate-800">Mua tài sản mới</h3>
-              <button onClick={() => setModalType(null)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
+              <button onClick={closeModal} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
             </div>
             <form onSubmit={handleBuy} className="space-y-4">
               <input type="text" required value={buyForm.name} onChange={e => setBuyForm({ ...buyForm, name: e.target.value })} placeholder="Tên tài sản (VD: 1 Chỉ SJC, Cổ phiếu FPT)..." className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none" />
@@ -340,7 +429,7 @@ export default function Investments() {
                     <option value="real_estate">BĐS / Hiện vật</option>
                   </select>
                   <div>
-                      <input type="number" step="any" min="0" required value={buyForm.quantity} onChange={e => setBuyForm({ ...buyForm, quantity: e.target.value })} placeholder="Số lượng (VD: 0.5, 100)" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none" title="Số lượng" />
+                      <input type="number" step="any" min="0.00000001" required value={buyForm.quantity} onChange={e => setBuyForm({ ...buyForm, quantity: e.target.value })} placeholder="Số lượng (VD: 0.5, 100)" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none" title="Số lượng" />
                   </div>
               </div>
 
@@ -383,7 +472,7 @@ export default function Investments() {
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-xl text-slate-800">Cập nhật giá</h3>
-              <button onClick={() => { setModalType(null); setAssetQuantity(''); }} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
+              <button onClick={closeModal} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
             </div>
 
             <div className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-sm mb-4 font-medium">{selectedInv?.name} - Vốn gốc: {formatCurrency(selectedInv?.principal_amount)}</div>
@@ -416,7 +505,7 @@ export default function Investments() {
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-xl text-slate-800">Nhận cổ tức / Tiền lãi</h3>
-              <button onClick={() => setModalType(null)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
+              <button onClick={closeModal} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
             </div>
             <form onSubmit={handlePassiveIncome} className="space-y-4">
               <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-sm mb-4 font-medium">Khoản tiền này sẽ được cộng trực tiếp vào ví của bạn.</div>
@@ -442,7 +531,7 @@ export default function Investments() {
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-xl text-slate-800">Chốt lời / Cắt lỗ</h3>
-              <button onClick={() => setModalType(null)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
+              <button onClick={closeModal} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-rose-500"><X size={20} /></button>
             </div>
             <form onSubmit={handleSell} className="space-y-4">
               <div className="p-3 bg-rose-50 text-rose-700 rounded-xl text-sm mb-4">Tài sản <b>{selectedInv?.name}</b> sẽ được tất toán và xóa khỏi danh mục Hold.</div>

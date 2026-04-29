@@ -4,7 +4,7 @@ from typing import List
 
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.category import CategoryCreate, CategoryResponse, CategoryTreeResponse
+from app.schemas.category import CategoryCreate, CategoryResponse, CategoryTreeResponse, CategoryUpdate
 from app.api.deps import get_current_user
 from app.services.category_service import category_service
 
@@ -39,6 +39,26 @@ def get_categories(
         "status": "success",
         "data": [CategoryTreeResponse.model_validate(cat) for cat in root_categories]
     }
+
+@router.put("/{category_id}", response_model=dict)
+def update_category(
+        category_id: int,
+        category_in: CategoryUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    try:
+        updated_category = category_service.update(db, category_id, category_in, current_user.user_id)
+        return {
+            "status": "success",
+            "message": "Cập nhật danh mục thành công",
+            "data": CategoryResponse.model_validate(updated_category)
+        }
+    except ValueError as ve:
+        status_c = 404 if "Không tìm thấy" in str(ve) else 400
+        raise HTTPException(status_code=status_c, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
 
 @router.delete("/{category_id}", response_model=dict)
 def delete_category(

@@ -13,6 +13,65 @@ const parseCurrency = (value) => {
     return Number(value.toString().replace(/[^0-9]/g, ''));
 };
 
+const formatApiError = (err, fallbackMessage) => {
+  const detail = err?.response?.data?.detail;
+
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const normalized = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+
+        const fieldPath = Array.isArray(item.loc)
+          ? item.loc.filter((segment) => segment !== 'body').join('.')
+          : '';
+
+        if (fieldPath && item.msg) return `${fieldPath}: ${item.msg}`;
+        return item.msg || '';
+      })
+      .filter(Boolean);
+
+    if (normalized.length > 0) {
+      return normalized.join(' | ');
+    }
+  }
+
+  return fallbackMessage;
+};
+
+const normalizeDateForInput = (value) => {
+  if (!value) return '';
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'string') {
+    const isoDateMatch = value.match(/^\d{4}-\d{2}-\d{2}/);
+    if (isoDateMatch) return isoDateMatch[0];
+
+    const parsedDate = new Date(value);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString().slice(0, 10);
+    }
+  }
+
+  return '';
+};
+
+const INITIAL_EDIT_FORM_DATA = {
+  transaction_id: null,
+  amount: '',
+  category_id: '',
+  date: '',
+  note: '',
+  transaction_type: 'expense'
+};
+
 export default function TransactionsList() {
   const [transactions, setTransactions] = useState([]);
   const [walletMap, setWalletMap] = useState({});
@@ -43,14 +102,12 @@ export default function TransactionsList() {
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    transaction_id: null,
-    amount: '',
-    category_id: '',
-    date: '',
-    note: '',
-    transaction_type: 'expense'
-  });
+  const [editFormData, setEditFormData] = useState(INITIAL_EDIT_FORM_DATA);
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditFormData(INITIAL_EDIT_FORM_DATA);
+  };
 
   // ==========================================
   // LẤY DỮ LIỆU METADATA (VÍ, DANH MỤC) - CHỈ CHẠY 1 LẦN
@@ -188,7 +245,7 @@ export default function TransactionsList() {
     toast.promise(promise, {
       loading: 'Đang xóa giao dịch...',
       success: 'Đã xóa và hoàn tiền vào ví! ♻️',
-      error: (err) => `Lỗi: ${err.response?.data?.detail || "Không thể xóa"}`
+      error: (err) => `Lỗi: ${formatApiError(err, 'Không thể xóa')}`
     });
 
     try {
@@ -207,38 +264,62 @@ export default function TransactionsList() {
   // ==========================================
   const handleEditClick = (e, tx) => {
     e.stopPropagation();
+
+    const transactionType = tx.transaction_type || 'expense';
+    const filteredCategories = categoriesList.filter((c) => c.type === transactionType);
+    const fallbackCategoryId = tx.category_id ?? filteredCategories[0]?.id ?? '';
+
     setEditFormData({
         transaction_id: tx.transaction_id,
-        amount: Math.floor(Number(tx.amount)).toString(),
-        category_id: tx.category_id,
-        date: tx.date,
+        amount: Math.floor(Number(tx.amount || 0)).toString(),
+        category_id: fallbackCategoryId ? fallbackCategoryId.toString() : '',
+        date: normalizeDateForInput(tx.date),
         note: tx.note || '',
-        transaction_type: tx.transaction_type
+        transaction_type: transactionType
     });
     setIsEditModalOpen(true);
   };
 
   const handleEditSubmit = async (e) => {
       e.preventDefault();
+      const normalizedAmount = parseCurrency(editFormData.amount);
+      const normalizedDate = normalizeDateForInput(editFormData.date);
+      const normalizedCategoryId = Number(editFormData.category_id);
+
+      if (!normalizedAmount || normalizedAmount <= 0) {
+        toast.error('Số tiền cập nhật phải lớn hơn 0');
+        return;
+      }
+
+      if (!editFormData.category_id || Number.isNaN(normalizedCategoryId)) {
+        toast.error('Vui lòng chọn danh mục hợp lệ');
+        return;
+      }
+
+      if (!normalizedDate) {
+        toast.error('Ngày giao dịch không hợp lệ');
+        return;
+      }
+
       setIsSubmitting(true);
 
       const payload = {
-          amount: parseCurrency(editFormData.amount),
-          category_id: Number(editFormData.category_id),
-          date: editFormData.date,
-          note: editFormData.note
+          amount: normalizedAmount,
+          category_id: normalizedCategoryId,
+          date: normalizedDate,
+          note: editFormData.note?.trim() || null
       };
 
       const promise = axiosClient.put(`/transactions/${editFormData.transaction_id}`, payload);
       toast.promise(promise, {
           loading: 'Đang cập nhật...',
           success: 'Cập nhật thành công! ✏️',
-          error: (err) => `Lỗi: ${err.response?.data?.detail || "Cập nhật thất bại"}`
+          error: (err) => `Lỗi: ${formatApiError(err, 'Cập nhật thất bại')}`
       });
 
       try {
           await promise;
-          setIsEditModalOpen(false);
+          closeEditModal();
           fetchTransactions(); // Tải lại để đồng bộ số liệu UI
       } catch (error) {
           console.error(error);
@@ -425,7 +506,7 @@ export default function TransactionsList() {
               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
                  <Edit2 className="text-indigo-600" /> Cập nhật giao dịch
               </h3>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
+              <button onClick={closeEditModal} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
                 <X size={20} />
               </button>
             </div>
@@ -454,6 +535,7 @@ export default function TransactionsList() {
                       onChange={(e) => setEditFormData({...editFormData, category_id: e.target.value})}
                       className="w-full bg-white border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none rounded-xl p-3 cursor-pointer text-slate-700 font-medium truncate"
                     >
+                      <option value="" disabled>Chọn danh mục</option>
                         {categoriesList
                             .filter(c => c.type === editFormData.transaction_type)
                             .map(c => (

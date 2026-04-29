@@ -1,6 +1,40 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+const getErrorMessage = (error) => {
+  const detail = error?.response?.data?.detail;
+
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const normalized = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+
+        const fieldPath = Array.isArray(item.loc)
+          ? item.loc.filter((segment) => segment !== 'body').join('.')
+          : '';
+
+        if (fieldPath && item.msg) return `${fieldPath}: ${item.msg}`;
+        return item.msg || '';
+      })
+      .filter(Boolean);
+
+    if (normalized.length > 0) {
+      return normalized.join(' | ');
+    }
+  }
+
+  if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
+    return detail.message;
+  }
+
+  return 'Lỗi giao tiếp hệ thống, vui lòng thử lại!';
+};
+
 const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1',
   headers: {
@@ -39,11 +73,11 @@ axiosClient.interceptors.response.use(
           const res = await axios.post(`${backendUrl}/auth/refresh`, null, {
             params: { refresh_token: refreshToken }
           });
-          
+
           if (res.status === 200) {
             const newAccessToken = res.data.access_token;
             const newRefreshToken = res.data.refresh_token; // Nếu server cấp lại cả refresh token
-            
+
             localStorage.setItem('access_token', newAccessToken);
             if (newRefreshToken) localStorage.setItem('refresh_token', newRefreshToken);
 
@@ -71,12 +105,12 @@ axiosClient.interceptors.response.use(
     // 2. Global Exception Catching: Hiển thị cửa sổ Toast cho mọi lỗi Backend đổ về
     // Loại trừ 401 để không báo "Token invalid" lúc nó đang tự dộng múa refresh token
     if (error.response && error.response.status !== 401) {
-       const errorMsg = error.response.data?.detail || "Lỗi giao tiếp hệ thống, vui lòng thử lại!";
-       // Báo lỗi dạng Toast thay vì console.log im lìm
-       toast.error(errorMsg);
+      const errorMsg = getErrorMessage(error);
+      // Báo lỗi dạng Toast thay vì console.log im lìm
+      toast.error(errorMsg);
     } else if (!error.response) {
-       // Lỗi từ mạng lưới, server đứt mạng
-       toast.error("Không thể kết nối đến máy chủ Backend!");
+      // Lỗi từ mạng lưới, server đứt mạng
+      toast.error("Không thể kết nối đến máy chủ Backend!");
     }
 
     return Promise.reject(error);
