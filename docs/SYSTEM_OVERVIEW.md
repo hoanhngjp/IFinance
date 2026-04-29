@@ -232,8 +232,10 @@ categories (1) ──── (N) subscriptions
 | `remaining_amount` | DECIMAL(15,2) | tự cập nhật sau mỗi lần trả |
 | `type` | ENUM | receivable / payable |
 | `interest_rate` | FLOAT | nullable |
-| `due_date` | DATE | nullable |
+| `due_date` | DATE | nullable — nếu truyền vào, phải ≥ ngày hôm qua (buffer 1 ngày cho lệch UTC+7) |
 | `is_installment` | BOOLEAN | default = false |
+
+> **Validation rule (DebtCreate schema):** `due_date` là optional. Nếu được truyền, giá trị phải ≥ `date.today() - 1 ngày` để tránh người dùng VN (UTC+7) bị từ chối oan khi server chạy UTC. Trả về HTTP 422 nếu vi phạm. *(Cập nhật 2026-04-30)*
 
 #### Bảng `investments`
 | Cột | Kiểu dữ liệu | Ràng buộc |

@@ -1085,6 +1085,25 @@ def create_refresh_token(subject, expires_delta=None) -> str:
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 ```
 
+### 6.9 Date/DateTime Conversion Pattern (Service Layer)
+
+**Bối cảnh:** PostgreSQL cột `DateTime(timezone=True)` yêu cầu `datetime` object có timezone khi update qua SQLAlchemy ORM, trong khi Pydantic schema `TransactionUpdate.date` nhận `date` object (không có time/timezone component).
+
+**Pattern áp dụng tại `transaction_service.update()`:**
+
+```python
+from datetime import datetime, timezone
+
+# KHÔNG: tx.date = tx_in.date  ← gán date vào DateTime(timezone=True) → type mismatch
+# ĐÚNG:
+tx.date = datetime.combine(tx_in.date, datetime.min.time()).replace(tzinfo=timezone.utc)
+```
+
+**Giải thích:**
+- `datetime.min.time()` = `time(0, 0, 0)` — dùng midnight cố định, không phải `datetime.now().time()` (sẽ thay đổi mỗi lần update → không nhất quán)
+- `.replace(tzinfo=timezone.utc)` — gắn UTC timezone, nhất quán với cách PostgreSQL lưu trữ `timestamptz`
+- `TransactionUpdate` cũng được thêm `@field_validator('date', mode='before')` để handle trường hợp frontend gửi datetime string thay vì date string, trả về `None` nguyên vẹn nếu field không được truyền. *(Cập nhật 2026-04-30)*
+
 ---
 
 ## 7. ƯU ĐIỂM KIẾN TRÚC

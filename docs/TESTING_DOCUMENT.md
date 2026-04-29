@@ -889,3 +889,67 @@ pytest --cov=app.services --cov-report=html
 
 *Tài liệu này được tạo dựa trên phân tích trực tiếp mã nguồn thư mục `backend/tests/` của dự án IFinance.*  
 *Mọi đoạn code trích dẫn phản ánh chính xác implementation hiện tại trong repository.*
+
+---
+
+## Phụ lục C: Manual API Test Cases (Kiểm thử tích hợp thủ công)
+
+Các test case dưới đây được thực hiện thủ công qua Swagger UI (`/docs`) hoặc công cụ HTTP client. Không nằm trong bộ pytest tự động.
+
+**Ngày cập nhật lần cuối:** 2026-04-30
+
+### Module: Authentication (Xác thực)
+
+| Mã TC | Mô tả | Endpoint | Dữ liệu đầu vào | Kết quả kỳ vọng | Trạng thái |
+|-------|-------|----------|-----------------|-----------------|------------|
+| AUTH-001 | Đăng ký tài khoản hợp lệ | `POST /auth/register` | username, email, password ≥ 8 ký tự | HTTP 201, trả về UserResponse | ✅ Pass |
+| AUTH-002 | Đăng nhập hợp lệ | `POST /auth/login` | email + password đúng | HTTP 200, access_token + refresh_token | ✅ Pass |
+| AUTH-003 | Đăng ký với password yếu (< 8 ký tự) | `POST /auth/register` | password = "123456" (6 ký tự) | HTTP 422 — validation error | ✅ Pass *(fix 2026-04-30: tăng min_length từ 6 → 8 trong UserCreate)* |
+
+### Module: Wallets (Ví tiền)
+
+| Mã TC | Mô tả | Endpoint | Dữ liệu đầu vào | Kết quả kỳ vọng | Trạng thái |
+|-------|-------|----------|-----------------|-----------------|------------|
+| WAL-001 | Tạo ví tiền mặt hợp lệ | `POST /wallets/` | name, type=cash, initial_balance | HTTP 201, WalletResponse | ✅ Pass |
+| WAL-002 | Tạo ví ngân hàng hợp lệ | `POST /wallets/` | name, type=bank | HTTP 201 | ✅ Pass |
+| WAL-003 | Tạo ví tín dụng hợp lệ | `POST /wallets/` | name, type=credit, credit_limit=10000000 | HTTP 201 | ✅ Pass |
+| WAL-004 | Lấy danh sách ví | `GET /wallets/` | — | HTTP 200, danh sách ví | ✅ Pass |
+| WAL-005 | Xem tổng tài sản | `GET /wallets/summary` | — | HTTP 200, net_worth | ✅ Pass |
+| WAL-006 | Cập nhật tên ví | `PUT /wallets/{id}` | name mới | HTTP 200 | ✅ Pass |
+| WAL-007 | Tạo ví credit thiếu credit_limit | `POST /wallets/` | type=credit, credit_limit=0 hoặc không gửi | HTTP 422 — credit_limit bắt buộc | ✅ Pass *(fix 2026-04-30: thêm model_validator vào WalletCreate)* |
+| WAL-008 | Xóa ví | `DELETE /wallets/{id}` | — | HTTP 200, is_active=false | ✅ Pass |
+| WAL-009 | Tạo ví với tên rỗng | `POST /wallets/` | name="" | HTTP 422 — name không được rỗng | ✅ Pass *(fix 2026-04-30: thêm min_length=1 vào WalletBase.name)* |
+
+### Module: Transactions (Giao dịch)
+
+| Mã TC | Mô tả | Endpoint | Dữ liệu đầu vào | Kết quả kỳ vọng | Trạng thái |
+|-------|-------|----------|-----------------|-----------------|------------|
+| TC001 | Tạo giao dịch chi tiêu | `POST /transactions/` | wallet_id, category_id, amount, date, type=expense | HTTP 201 | ✅ Pass |
+| TC002 | Tạo giao dịch thu nhập | `POST /transactions/` | type=income | HTTP 201 | ✅ Pass |
+| TC003 | Lấy danh sách giao dịch | `GET /transactions/` | — | HTTP 200, phân trang | ✅ Pass |
+| TC004 | Lọc giao dịch theo ngày | `GET /transactions/?start_date=&end_date=` | khoảng ngày | HTTP 200, kết quả lọc | ✅ Pass |
+| TC005 | Xóa giao dịch — số dư được hoàn | `DELETE /transactions/{id}` | — | HTTP 200, balance hoàn về | ✅ Pass |
+| TC006 | Tạo giao dịch chuyển khoản | `POST /transactions/transfer` | source_wallet_id, dest_wallet_id, amount | HTTP 200, 2 transaction IDs | ✅ Pass |
+| TC017 | Cập nhật amount giao dịch | `PUT /transactions/{id}` | amount mới | HTTP 200, balance ví được điều chỉnh | ✅ Pass *(fix 2026-04-30: thêm validator date + convert date→datetime trong service)* |
+| TC018 | Cập nhật category giao dịch | `PUT /transactions/{id}` | category_id mới | HTTP 200 | ✅ Pass *(fix 2026-04-30)* |
+| TC019 | Cập nhật note và date giao dịch | `PUT /transactions/{id}` | note, date mới | HTTP 200 | ✅ Pass *(fix 2026-04-30)* |
+
+### Module: Debts (Nợ)
+
+| Mã TC | Mô tả | Endpoint | Dữ liệu đầu vào | Kết quả kỳ vọng | Trạng thái |
+|-------|-------|----------|-----------------|-----------------|------------|
+| DEBT-001 | Tạo khoản nợ (đi vay) hợp lệ | `POST /debts/` | creditor_name, type=payable, total_amount | HTTP 201 | ✅ Pass |
+| DEBT-002 | Tạo khoản nợ (cho vay) hợp lệ | `POST /debts/` | type=receivable | HTTP 201 | ✅ Pass |
+| DEBT-003 | Trả nợ một phần | `POST /debts/{id}/repay` | amount < remaining | HTTP 200, remaining giảm | ✅ Pass |
+| DEBT-004 | Xem lịch sử trả nợ | `GET /debts/{id}/repayments` | — | HTTP 200, danh sách | ✅ Pass |
+| DEBT-005 | Tạo nợ với due_date trong quá khứ | `POST /debts/` | due_date = "2020-01-01" | HTTP 422 — due_date không được là ngày quá khứ | ✅ Pass *(fix 2026-04-30: thêm field_validator vào DebtCreate.due_date)* |
+
+### Module: Frontend UI Modals
+
+| Mã TC | Mô tả | Component | Hành động kiểm tra | Kết quả kỳ vọng | Trạng thái |
+|-------|-------|-----------|-------------------|-----------------|------------|
+| TC006 | Modal Thêm ví — reset khi đóng X | `Wallets.jsx` | Nhập tên ví → đóng X → mở lại | Form trắng hoàn toàn | ✅ Pass *(fix 2026-04-30: reset addWalletData trong onClose)* |
+| TC007 | Modal AI Tạo Ngân sách — reset khi đóng X | `Budgets.jsx` | Nhập income → đóng X → mở lại | Form trắng hoàn toàn | ✅ Pass *(fix 2026-04-30: thêm setSmartData reset trong onClose)* |
+| TC010 | Modal Tạo khoản nợ — reset khi đóng X | `Debts.jsx` | Nhập thông tin → đóng X → mở lại | Form trắng hoàn toàn | ✅ Pass *(fix 2026-04-30: reset newDebtData trong onClose)* |
+| TC011 | Nút hoán đổi ví trong form Chuyển tiền | `Wallets.jsx` | Click nút ⇅ | Ví nguồn và ví đích hoán đổi cho nhau | ✅ Pass *(fix 2026-04-30: thêm onClick swap vào nút)* |
+| TC012 | Modal Chuyển tiền — reset khi đóng X | `Wallets.jsx` | Nhập số tiền → đóng X → mở lại | Form trắng (amount, note reset) | ✅ Pass *(fix 2026-04-30: reset transferData trong onClose)* |

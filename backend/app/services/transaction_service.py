@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, datetime, timezone
 from app.crud.crud_transaction import transaction as crud_transaction
 from app.crud.crud_wallet import wallet as crud_wallet
 from app.crud.crud_category import category as crud_category
@@ -226,7 +226,7 @@ class TransactionService:
         if tx_in.note is not None:
              tx.note = tx_in.note
         if tx_in.date is not None:
-             tx.date = tx_in.date
+             tx.date = datetime.combine(tx_in.date, datetime.min.time()).replace(tzinfo=timezone.utc)
 
         # 3. Trừ/Cộng tiền dựa trên số tiền mới
         if tx.transaction_type == TransactionType.expense:

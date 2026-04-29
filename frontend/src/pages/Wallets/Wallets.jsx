@@ -379,7 +379,7 @@ export default function Wallets() {
               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
                  <Plus className="text-indigo-600" /> Thêm ví mới
               </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
+              <button onClick={() => { setIsAddModalOpen(false); setAddWalletData({ name: '', type: 'cash', currency: 'VND', initial_balance: '', credit_limit: '' }); }} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
                 <X size={20} />
               </button>
             </div>
@@ -585,7 +585,7 @@ export default function Wallets() {
               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
                  <ArrowRightLeft className="text-emerald-500" /> Chuyển tiền nội bộ
               </h3>
-              <button onClick={() => setIsTransferModalOpen(false)} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
+              <button onClick={() => { setIsTransferModalOpen(false); setTransferData({ source_wallet_id: '', dest_wallet_id: '', amount: '', note: 'Chuyển tiền nội bộ', date: new Date().toISOString().split('T')[0] }); }} className="text-gray-400 hover:text-rose-500 transition-colors bg-gray-50 p-2 rounded-full">
                 <X size={20} />
               </button>
             </div>
@@ -610,11 +610,19 @@ export default function Wallets() {
                     </select>
                   </div>
 
-                  {/* Icon mũi tên xuống */}
+                  {/* Nút hoán đổi ví */}
                   <div className="flex justify-center -my-3 relative z-10">
-                      <div className="bg-white p-1.5 rounded-full border border-gray-200 text-gray-400 shadow-sm">
+                      <button
+                          type="button"
+                          onClick={() => setTransferData(prev => ({
+                              ...prev,
+                              source_wallet_id: prev.dest_wallet_id,
+                              dest_wallet_id: prev.source_wallet_id
+                          }))}
+                          className="bg-white p-1.5 rounded-full border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 shadow-sm transition-colors cursor-pointer"
+                      >
                           <ArrowRightLeft size={16} className="rotate-90" />
-                      </div>
+                      </button>
                   </div>
 
                   {/* Ví Đích */}

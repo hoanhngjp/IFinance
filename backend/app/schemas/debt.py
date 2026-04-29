@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from app.models.enums import DebtType
 
@@ -16,6 +16,14 @@ class DebtCreate(BaseModel):
     # 2 trường này dùng để tự động tạo Giao dịch (Transaction) ban đầu
     wallet_id: int
     category_id: int
+
+    @field_validator('due_date', mode='after')
+    @classmethod
+    def validate_due_date_not_in_past(cls, v):
+        # Buffer 1 ngày để tránh user bị lỗi oan do lệch timezone UTC vs UTC+7
+        if v is not None and v < date.today() - timedelta(days=1):
+            raise ValueError("Ngày đến hạn (due_date) không được là ngày trong quá khứ")
+        return v
 
 # Schema cho Output Khoản Nợ
 class DebtResponse(BaseModel):

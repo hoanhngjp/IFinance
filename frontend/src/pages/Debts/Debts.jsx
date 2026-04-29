@@ -12,36 +12,6 @@ const parseCurrency = (value) => {
     return Number(value.toString().replace(/[^0-9]/g, ''));
 };
 
-const getErrorMessage = (err, fallback = 'Đã xảy ra lỗi, vui lòng thử lại!') => {
-  const detail = err?.response?.data?.detail;
-
-  if (typeof detail === 'string' && detail.trim()) return detail;
-
-  if (Array.isArray(detail)) {
-    const normalized = detail
-      .map((item) => {
-        if (typeof item === 'string') return item;
-        if (!item || typeof item !== 'object') return '';
-
-        const fieldPath = Array.isArray(item.loc)
-          ? item.loc.filter((segment) => segment !== 'body').join('.')
-          : '';
-
-        if (fieldPath && item.msg) return `${fieldPath}: ${item.msg}`;
-        return item.msg || '';
-      })
-      .filter(Boolean);
-
-    if (normalized.length > 0) return normalized.join(' | ');
-  }
-
-  if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
-    return detail.message;
-  }
-
-  return fallback;
-};
-
 export default function Debts() {
   const [activeTab, setActiveTab] = useState('payable');
   const [debts, setDebts] = useState([]);
@@ -67,23 +37,6 @@ export default function Debts() {
     amount: '', wallet_id: '', category_id: '', date: new Date().toISOString().split('T')[0], note: ''
   });
 
-  const resetNewDebtData = (type = activeTab) => {
-    setNewDebtData({
-      creditor_name: '',
-      total_amount: '',
-      type,
-      wallet_id: '',
-      category_id: '',
-      note: '',
-      due_date: ''
-    });
-  };
-
-  const closeAddModal = () => {
-    setIsAddModalOpen(false);
-    resetNewDebtData(activeTab);
-  };
-
   const fetchData = async () => {
     try {
       const [debtsRes, walletsRes, catsRes] = await Promise.all([
@@ -107,24 +60,11 @@ export default function Debts() {
 
   const handleCreateDebt = async (e) => {
     e.preventDefault();
-
-    const totalAmount = parseCurrency(newDebtData.total_amount);
-    if (totalAmount <= 0) {
-      return toast.error('Số tiền gốc phải lớn hơn 0');
-    }
-
-    if (newDebtData.due_date) {
-      const today = new Date().toISOString().split('T')[0];
-      if (newDebtData.due_date < today) {
-        return toast.error('Hạn thanh toán không được nhỏ hơn ngày hôm nay');
-      }
-    }
-
     setIsSubmitting(true);
 
     const payload = {
       ...newDebtData,
-      total_amount: totalAmount,
+      total_amount: parseCurrency(newDebtData.total_amount),
       category_id: Number(newDebtData.category_id),
       due_date: newDebtData.due_date || null
     };
@@ -134,12 +74,13 @@ export default function Debts() {
     toast.promise(promise, {
       loading: 'Đang tạo khoản nợ...',
       success: 'Đã ghi nhận khoản nợ thành công! 📝',
-      error: (err) => getErrorMessage(err, 'Lỗi khi tạo nợ')
+      error: (err) => err.response?.data?.detail || "Lỗi khi tạo nợ"
     });
 
     try {
       await promise;
-      closeAddModal();
+      setIsAddModalOpen(false);
+      setNewDebtData({ creditor_name: '', total_amount: '', type: activeTab, wallet_id: '', category_id: '', note: '', due_date: '' });
       fetchData();
     } catch (error) {} finally { setIsSubmitting(false); }
   };
@@ -176,7 +117,7 @@ export default function Debts() {
     toast.promise(promise, {
       loading: 'Đang xử lý...',
       success: 'Ghi nhận thanh toán thành công! ✅',
-      error: (err) => getErrorMessage(err, 'Lỗi')
+      error: (err) => err.response?.data?.detail || "Lỗi"
     });
 
     try {
@@ -203,7 +144,7 @@ export default function Debts() {
             <p className="text-gray-500 mt-1">Theo dõi các khoản vay và cho vay</p>
           </div>
           <button onClick={() => {
-              resetNewDebtData(activeTab);
+              setNewDebtData(prev => ({ ...prev, type: activeTab }));
               setIsAddModalOpen(true);
           }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 font-medium transition-all">
             <Plus size={20} /> <span className="hidden lg:inline">Thêm khoản nợ</span>
@@ -302,7 +243,7 @@ export default function Debts() {
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                 <h3 className="font-bold text-xl text-slate-800">Tạo khoản nợ mới</h3>
-              <button onClick={closeAddModal} className="text-gray-400 hover:text-rose-500 bg-gray-50 p-2 rounded-full"><X size={20} /></button>
+                <button onClick={() => { setIsAddModalOpen(false); setNewDebtData({ creditor_name: '', total_amount: '', type: activeTab, wallet_id: '', category_id: '', note: '', due_date: '' }); }} className="text-gray-400 hover:text-rose-500 bg-gray-50 p-2 rounded-full"><X size={20} /></button>
             </div>
             <form onSubmit={handleCreateDebt} className="p-6 space-y-4">
 
@@ -327,7 +268,7 @@ export default function Debts() {
 
               <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1">Hạn thanh toán (Không bắt buộc)</label>
-                  <input type="date" min={today} value={newDebtData.due_date} onChange={(e) => setNewDebtData({...newDebtData, due_date: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer" />
+                  <input type="date" value={newDebtData.due_date} onChange={(e) => setNewDebtData({...newDebtData, due_date: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

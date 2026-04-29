@@ -114,7 +114,7 @@ docker exec -it ifinance_backend python seed.py
 ### Bước 4: Trải nghiệm ứng dụng
 - **Frontend Web App:** Truy cập `http://localhost:5173`
   - *Tài khoản test:* `test@ifinance.com`
-  - *Mật khẩu:* `123456`
+  - *Mật khẩu:* `Test@123`
 - **Backend API Docs (Swagger UI):** Truy cập `http://localhost:8000/docs`
 
 > **Các lệnh Docker hữu ích:**

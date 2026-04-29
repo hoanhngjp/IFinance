@@ -349,7 +349,7 @@ export default function Budgets() {
                 <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
                    <Wand2 className="text-indigo-600" /> AI Tạo Ngân Sách
                 </h3>
-                <button onClick={() => { setIsSmartModalOpen(false); setSmartPreview([]); }} className="text-gray-400 hover:text-rose-500 transition-colors bg-white p-2 rounded-full shadow-sm">
+                <button onClick={() => { setIsSmartModalOpen(false); setSmartPreview([]); setSmartData({ income: '', template_type: '50_30_20' }); }} className="text-gray-400 hover:text-rose-500 transition-colors bg-white p-2 rounded-full shadow-sm">
                   <X size={20} />
                 </button>
              </div>

@@ -33,14 +33,14 @@ def seed_data():
             user = User(
                 username="testuser",
                 email=test_email,
-                password_hash=get_password_hash("123456"),
+                password_hash=get_password_hash("Test@123"),
                 full_name="Người dùng Test",
                 is_active=True
             )
             db.add(user)
             db.commit()
             db.refresh(user)
-            print("✅ Đã tạo User test: test@ifinance.com | Pass: 123456")
+            print("✅ Đã tạo User test: test@ifinance.com | Pass: Test@123")
         else:
             print("⚡ User test đã tồn tại. Bỏ qua bước tạo User.")
 
