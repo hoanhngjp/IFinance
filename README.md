@@ -7,7 +7,7 @@
 ## 🌟 Trải nghiệm Bản Thực Tế (Live Demo & Production)
 
 Hệ thống đã được thiết lập tự động hóa Triển khai (Deployment) với kiến trúc linh hoạt:
-- **Frontend App:** Đang chạy trực tiếp cực mượt [tại đây (Vercel)](https://i-finance-eosin.vercel.app/)
+- **Frontend App:** Đang chạy trực tiếp cực mượt [tại đây (Vercel)](https://i-finance-woad.vercel.app/)
 - **Backend API:** FastAPI tích hợp JWT Auth được lưu trữ trên **Render**.
 - **Database Cluster:** 
   - *PostgreSQL* (Giao dịch, Thông tin người dùng) chạy trên **Supabase/Neon**.
