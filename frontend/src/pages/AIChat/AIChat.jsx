@@ -72,7 +72,7 @@ export default function AIChat() {
       }
 
       try {
-        const response = await axiosClient.get(`/ai/chat/${sessionId}`);
+        const response = await axiosClient.get(`/ai/chat/history?session_id=${sessionId}`);
         const historyData = response.data?.data || response.data || [];
         if (historyData.length > 0) {
           setMessages(historyData);
