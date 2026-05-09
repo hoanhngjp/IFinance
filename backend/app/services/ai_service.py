@@ -180,6 +180,9 @@ class AIService:
         wallet_list = [{"id": w.wallet_id, "name": w.name} for w in wallets]
         category_list = [{"id": c.category_id, "name": c.name, "type": c.type.name} for c in categories]
 
+        action_type = None
+        extracted_txs = []
+
         try:
             model = self._get_model()
             prompt = f"""
@@ -219,9 +222,6 @@ class AIService:
             response = model.generate_content(prompt)
             res_text = response.text.strip()
             bot_reply = res_text
-
-            action_type = None
-            extracted_txs = []
 
             json_match = re.search(r'```json\n(.*?)\n```', res_text, re.DOTALL)
             if json_match:
