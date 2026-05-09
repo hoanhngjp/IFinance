@@ -1,4 +1,5 @@
 import os
+import certifi
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -9,7 +10,7 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "ifinance_db")
 
 try:
     # Khởi tạo kết nối đến MongoDB Atlas
-    client = MongoClient(MONGO_URI)
+    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
 
     # Chọn Database
     mongodb = client[MONGO_DB_NAME]
