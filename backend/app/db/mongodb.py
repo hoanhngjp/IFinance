@@ -10,7 +10,7 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "ifinance_db")
 
 try:
     # Khởi tạo kết nối đến MongoDB Atlas
-    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
+    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where(), tlsAllowInvalidCertificates=True)
 
     # Chọn Database
     mongodb = client[MONGO_DB_NAME]
