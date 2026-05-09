@@ -3,6 +3,9 @@ import json
 import re
 import io
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from PIL import Image
 import google.generativeai as genai
@@ -239,7 +242,8 @@ class AIService:
                 except Exception:
                     bot_reply = "Mình hiểu bạn muốn thêm giao dịch, nhưng có lỗi xảy ra khi phân tích dữ liệu. Vui lòng thử lại sau nhé!"
 
-        except Exception:
+        except Exception as e:
+            logger.error(f"chat_rag exception: {e}", exc_info=True)
             bot_reply = "Xin lỗi, hệ thống AI đang bận tính toán. Vui lòng thử lại sau nhé!"
 
         bot_msg = {
