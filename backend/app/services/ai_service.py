@@ -98,9 +98,30 @@ class AIService:
         except Exception as e:
             raise RuntimeError(f"Hệ thống AI tạm thời gián đoạn: {str(e)}")
 
+    def _compress_image(self, file_bytes: bytes, max_size: int = 1024, quality: int = 75) -> tuple[bytes, str]:
+        """Resize and recompress image to reduce memory usage."""
+        img = Image.open(io.BytesIO(file_bytes))
+        img_format = img.format or "JPEG"
+
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+            img_format = "JPEG"
+
+        w, h = img.size
+        if w > max_size or h > max_size:
+            ratio = max_size / max(w, h)
+            img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+
+        buf = io.BytesIO()
+        save_format = "JPEG" if img_format in ("JPEG", "JPG") else img_format
+        mime = "image/jpeg" if save_format == "JPEG" else f"image/{save_format.lower()}"
+        img.save(buf, format=save_format, quality=quality, optimize=True)
+        img.close()
+        return buf.getvalue(), mime
+
     def ocr_receipt(self, file_bytes: bytes):
         try:
-            img = Image.open(io.BytesIO(file_bytes))
+            compressed_bytes, mime_type = self._compress_image(file_bytes)
         except Exception:
             raise ValueError("Không thể đọc được ảnh. File có thể bị hỏng.")
 
@@ -133,7 +154,8 @@ class AIService:
 
         try:
             model = self._get_model()
-            response = model.generate_content([prompt, img])
+            image_part = {"mime_type": mime_type, "data": compressed_bytes}
+            response = model.generate_content([prompt, image_part])
             res_text = response.text.strip()
 
             json_match = re.search(r'```json\n(.*?)\n```', res_text, re.DOTALL)
