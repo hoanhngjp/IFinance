@@ -21,6 +21,15 @@ export default function BottomNav() {
   const [showMore, setShowMore] = useState(false);
   const hideNavRoutes = ['/login', '/register', '/add'];
 
+  React.useEffect(() => {
+    if (showMore) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showMore]);
+
   if (hideNavRoutes.includes(location.pathname)) return null;
 
   const isMoreActive = MORE_ITEMS.some(item => item.to === location.pathname);
@@ -51,6 +60,7 @@ export default function BottomNav() {
       {/* More Sheet */}
       <div
         className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${showMore ? 'translate-y-0' : 'translate-y-full'}`}
+        onTouchMove={e => e.stopPropagation()}
       >
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1">
