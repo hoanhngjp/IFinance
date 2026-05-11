@@ -11,15 +11,21 @@ from app.services.transaction_service import transaction_service
 
 router = APIRouter()
 
+
+def _raise_http(ve: ValueError) -> None:
+    code = 404 if "Không tìm thấy" in str(ve) else 400
+    raise HTTPException(status_code=code, detail=str(ve))
+
+
 @router.get("/", response_model=dict)
 def get_transactions(
-        page: int = Query(1, ge=1, description="Số trang hiện tại"),
-        size: int = Query(20, ge=1, description="Số item trên 1 trang"),
-        type: Optional[str] = Query(None, description="Lọc: expense/income"),
-        wallet_id: Optional[int] = Query(None, description="Lọc theo ID ví"),
-        category_id: Optional[int] = Query(None, description="Lọc theo ID danh mục"),
-        start_date: Optional[date] = Query(None, description="Từ ngày"),
-        end_date: Optional[date] = Query(None, description="Đến ngày"),
+        page: int = Query(1, ge=1),
+        size: int = Query(20, ge=1),
+        type: Optional[str] = Query(None),
+        wallet_id: Optional[int] = Query(None),
+        category_id: Optional[int] = Query(None),
+        start_date: Optional[date] = Query(None),
+        end_date: Optional[date] = Query(None),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -39,9 +45,7 @@ def get_transactions(
             }
         }
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+        _raise_http(ve)
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 def create_transaction(
@@ -57,10 +61,9 @@ def create_transaction(
             "data": TransactionResponse.model_validate(new_tx)
         }
     except ValueError as ve:
-        status_c = 404 if "Không tìm thấy" in str(ve) else 400
-        raise HTTPException(status_code=status_c, detail=str(ve))
+        _raise_http(ve)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: Không thể xử lý giao dịch. Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/bulk", response_model=dict, status_code=status.HTTP_201_CREATED)
 def create_bulk_transactions(
@@ -76,10 +79,9 @@ def create_bulk_transactions(
             "data": {"count": inserted_count}
         }
     except ValueError as ve:
-        status_c = 404 if "Không tìm thấy" in str(ve) else 400
-        raise HTTPException(status_code=status_c, detail=str(ve))
+        _raise_http(ve)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi nhập hàng loạt: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{transaction_id}", response_model=dict)
 def update_transaction(
@@ -96,10 +98,7 @@ def update_transaction(
             "data": TransactionResponse.model_validate(tx)
         }
     except ValueError as ve:
-        status_c = 404 if "Không tìm thấy" in str(ve) else 400
-        raise HTTPException(status_code=status_c, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+        _raise_http(ve)
 
 @router.delete("/{transaction_id}", response_model=dict)
 def delete_transaction(
@@ -114,10 +113,9 @@ def delete_transaction(
             "message": "Đã xóa giao dịch và hoàn lại tiền ví thành công"
         }
     except ValueError as ve:
-        status_c = 404 if "Không tìm thấy" in str(ve) else 400
-        raise HTTPException(status_code=status_c, detail=str(ve))
+        _raise_http(ve)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: Không thể xóa giao dịch. Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/transfer", response_model=dict)
 def transfer_money(
@@ -130,12 +128,7 @@ def transfer_money(
         return {
             "status": "success",
             "message": "Chuyển tiền thành công",
-            "data": {
-                "transaction_ids": [tx_out_id, tx_in_id]
-            }
+            "data": {"transaction_ids": [tx_out_id, tx_in_id]}
         }
     except ValueError as ve:
-        status_c = 404 if "Không tìm thấy" in str(ve) else 400
-        raise HTTPException(status_code=status_c, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+        _raise_http(ve)

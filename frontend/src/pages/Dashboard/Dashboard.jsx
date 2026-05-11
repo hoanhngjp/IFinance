@@ -40,18 +40,12 @@ export default function Dashboard() {
           axiosClient.get('/transactions/?page=1&size=2000')
         ]);
 
-        const walletsData = walletsRes.data || walletsRes || [];
-        setRawWallets(Array.isArray(walletsData) ? walletsData : []);
+        setRawWallets(Array.isArray(walletsRes) ? walletsRes : []);
 
-        let txData = [];
-        if (txRes?.data?.items) txData = txRes.data.items;
-        else if (txRes?.items) txData = txRes.items;
-        else if (Array.isArray(txRes?.data)) txData = txRes.data;
-        else if (Array.isArray(txRes)) txData = txRes;
-
+        const txData = txRes?.items ?? [];
         setRawTxs(txData);
 
-        const categoriesData = categoriesRes.data || categoriesRes || [];
+        const categoriesData = Array.isArray(categoriesRes) ? categoriesRes : [];
         const cMap = {};
         const flattenCategories = (cats) => {
           if (!Array.isArray(cats)) return;
@@ -73,8 +67,6 @@ export default function Dashboard() {
   }, []);
 
   const dashboardData = useMemo(() => {
-    if (!rawTxs && !rawWallets) return null;
-
     const now = new Date();
     let endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     let startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -102,19 +94,14 @@ export default function Dashboard() {
         return txDate.getTime() >= startDate.getTime() && txDate.getTime() <= endDate.getTime();
     });
 
-    // ==========================================
-    // FIX: TÁCH BẠCH THU/CHI VÀ DÒNG TIỀN ĐẦU TƯ
-    // ==========================================
     let totalInc = 0;
     let totalExp = 0;
     filteredTxs.forEach(tx => {
-        // Chỉ lấy đúng Thu nhập thuần và Chi phí thuần cho thẻ Tổng quan
         if (tx.transaction_type === 'income') {
             totalInc += Number(tx.amount || 0);
         } else if (tx.transaction_type === 'expense') {
             totalExp += Number(tx.amount || 0);
         }
-        // Các loại như transfer, investment_in, investment_return sẽ tự động bị bỏ qua ở đây
     });
 
     const totalBalance = rawWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);

@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
 from datetime import date
 from decimal import Decimal
-import pandas as pd
 
 from app.crud.crud_investment import investment as crud_investment
 from app.crud.crud_wallet import wallet as crud_wallet
@@ -21,14 +20,15 @@ class InvestmentService:
         if not investments:
             return {"allocation": [], "trend": []}
 
-        data = [{"type": inv.type.value if hasattr(inv.type, 'value') else inv.type, "current_value": float(inv.current_value)} for inv in investments]
-        df = pd.DataFrame(data)
-
-        allocation_df = df.groupby("type")["current_value"].sum().reset_index()
-        total_value = allocation_df["current_value"].sum()
-        allocation_df["percent"] = (allocation_df["current_value"] / total_value) * 100
-        allocation_df["percent"] = allocation_df["percent"].round(2)
-        allocation_data = allocation_df.to_dict("records")
+        totals: dict[str, float] = {}
+        for inv in investments:
+            t = inv.type.value
+            totals[t] = totals.get(t, 0) + float(inv.current_value)
+        total_value = sum(totals.values())
+        allocation_data = [
+            {"type": t, "current_value": v, "percent": round(v / total_value * 100, 2)}
+            for t, v in totals.items()
+        ]
 
         return {"allocation": allocation_data, "trend": []}
 

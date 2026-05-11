@@ -63,8 +63,11 @@ async def ocr_receipt(
     if file.content_type not in valid_content_types and file_extension not in valid_extensions:
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file ảnh định dạng JPG, PNG, WEBP.")
 
+    MAX_SIZE = 5 * 1024 * 1024  # 5MB
     try:
-        file_bytes = await file.read()
+        file_bytes = await file.read(MAX_SIZE + 1)
+        if len(file_bytes) > MAX_SIZE:
+            raise HTTPException(status_code=413, detail="Ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.")
         result_json = ai_service.ocr_receipt(file_bytes)
         return {
             "status": "success",

@@ -28,8 +28,7 @@ class BudgetService:
 
         if existing_budget:
             existing_budget.amount_limit = budget_in.amount_limit
-            if hasattr(budget_in, 'is_rollover'):
-                existing_budget.is_rollover = budget_in.is_rollover
+            existing_budget.is_rollover = budget_in.is_rollover
             db.commit()
             db.refresh(existing_budget)
             return existing_budget, False
@@ -41,7 +40,7 @@ class BudgetService:
             period=budget_in.period,
             start_date=budget_in.start_date,
             end_date=budget_in.end_date,
-            is_rollover=getattr(budget_in, 'is_rollover', False) if hasattr(Budget, 'is_rollover') else False
+            is_rollover=budget_in.is_rollover
         )
         db.add(new_budget)
         db.commit()
@@ -86,7 +85,7 @@ class BudgetService:
                 "remaining": float(remaining),
                 "warning": warning,
                 "safe_to_spend_per_day": float(safe_to_spend_per_day),
-                "is_rollover": getattr(budget, 'is_rollover', False)
+                "is_rollover": budget.is_rollover
             })
 
         return progress_list
@@ -98,7 +97,7 @@ class BudgetService:
 
         if "amount_limit" in budget_in:
             budget_obj.amount_limit = budget_in["amount_limit"]
-        if "is_rollover" in budget_in and hasattr(budget_obj, 'is_rollover'):
+        if "is_rollover" in budget_in:
             budget_obj.is_rollover = budget_in["is_rollover"]
 
         db.commit()

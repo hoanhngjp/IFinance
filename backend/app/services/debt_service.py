@@ -18,11 +18,8 @@ class DebtService:
         current_balance = Decimal(str(wallet.balance or 0))
         loan_amount = Decimal(str(debt_in.total_amount))
         
-        debt_type_val = debt_in.type.value if hasattr(debt_in.type, 'value') else debt_in.type
-        wallet_type_val = wallet.type.value if hasattr(wallet.type, 'value') else wallet.type
-
-        is_receivable = (debt_type_val == "receivable")
-        is_credit_wallet = (wallet_type_val == "credit")
+        is_receivable = debt_in.type == DebtType.receivable
+        is_credit_wallet = wallet.type == WalletType.credit
 
         if is_receivable and not is_credit_wallet:
             if current_balance < loan_amount:
@@ -41,7 +38,7 @@ class DebtService:
         db.add(new_debt)
         db.flush()
 
-        tx_type = TransactionType.income if debt_type_val == "payable" else TransactionType.expense
+        tx_type = TransactionType.income if debt_in.type == DebtType.payable else TransactionType.expense
 
         tx = Transaction(
             user_id=user_id,
@@ -54,9 +51,9 @@ class DebtService:
         )
         db.add(tx)
 
-        if debt_type_val == "payable":
+        if debt_in.type == DebtType.payable:
             wallet.balance = current_balance + loan_amount
-        elif debt_type_val == "receivable":
+        elif debt_in.type == DebtType.receivable:
             wallet.balance = current_balance - loan_amount
 
         db.commit()
@@ -105,11 +102,8 @@ class DebtService:
 
         current_balance = Decimal(str(wallet.balance or 0))
 
-        debt_type_val = debt_obj.type.value if hasattr(debt_obj.type, 'value') else debt_obj.type
-        wallet_type_val = wallet.type.value if hasattr(wallet.type, 'value') else wallet.type
-
-        is_payable = (debt_type_val == "payable")
-        is_credit_wallet = (wallet_type_val == "credit")
+        is_payable = debt_obj.type == DebtType.payable
+        is_credit_wallet = wallet.type == WalletType.credit
 
         if is_payable and not is_credit_wallet:
             if current_balance < repay_amount:
@@ -140,7 +134,7 @@ class DebtService:
 
         if is_payable:
             wallet.balance = current_balance - repay_amount
-        elif debt_type_val == "receivable":
+        elif debt_obj.type == DebtType.receivable:
             wallet.balance = current_balance + repay_amount
 
         db.commit()

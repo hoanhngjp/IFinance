@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -7,27 +8,20 @@ from app.services.subscription_worker import process_due_subscriptions
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routers import auth, wallet, category, transaction, debt, budget, ai, subscription, investment, user
 
-# --- KHỞI TẠO SCHEDULER CHẠY NGẦM ---
+logger = logging.getLogger(__name__)
+
 scheduler = BackgroundScheduler()
-# Để Test
-#scheduler.add_job(process_due_subscriptions, 'interval', minutes=1)
 scheduler.add_job(process_due_subscriptions, 'cron', hour=0, minute=1)
 
 
-# --- KHAI BÁO LIFESPAN ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. PHẦN STARTUP (Khởi động Server)
     scheduler.start()
-    print("⏳ [APScheduler] Đã khởi động Background Worker!")
-
+    logger.info("[APScheduler] Background worker started")
     process_due_subscriptions()
-
-    yield  # <--- Ứng dụng FastAPI sẽ chạy và phục vụ người dùng ở điểm này
-
-    # 2. PHẦN SHUTDOWN (Khi tắt Server bằng Ctrl+C)
+    yield
     scheduler.shutdown()
-    print("🛑 [APScheduler] Đã tắt Background Worker!")
+    logger.info("[APScheduler] Background worker stopped")
 
 app = FastAPI(
     title="IFinance API",
@@ -36,7 +30,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Cho phép Frontend gọi API mà không bị lỗi CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "https://i-finance-eosin.vercel.app", "https://i-finance-woad.vercel.app","https://i-finance-eosin.vercel.app", "https://i-finance-3c1o.vercel.app", "https://my-finance-nu-taw.vercel.app"],

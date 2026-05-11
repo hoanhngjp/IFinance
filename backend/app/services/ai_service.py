@@ -4,10 +4,10 @@ import re
 import io
 import uuid
 import logging
+from datetime import datetime, date, timezone
+from PIL import Image
 
 logger = logging.getLogger(__name__)
-from datetime import datetime
-from PIL import Image
 import google.generativeai as genai
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -59,7 +59,7 @@ class AIService:
         3. category_id: Tìm ID của danh mục phù hợp nhất trong danh sách trên.
         4. wallet_id: Tìm ID của ví được nhắc đến. Nếu người dùng không nhắc đến ví nào, hãy lấy ID của ví đầu tiên.
         5. note: Tóm tắt ghi chú ngắn gọn.
-        6. date: Trích xuất ngày giao dịch dưới định dạng YYYY-MM-DD. Nếu không nhắc thời gian, trả về ngày hôm nay: {datetime.utcnow().date()}. Nếu chỉ nhắc ngày/tháng (như 12/3), hãy lấy năm hiện tại là {datetime.utcnow().year}.
+        6. date: Trích xuất ngày giao dịch dưới định dạng YYYY-MM-DD. Nếu không nhắc thời gian, trả về ngày hôm nay: {date.today()}. Nếu chỉ nhắc ngày/tháng (như 12/3), hãy lấy năm hiện tại là {date.today().year}.
 
         Định dạng trả về mong muốn (Luôn chứa mảng "transactions"):
         {{
@@ -70,7 +70,7 @@ class AIService:
                     "category_id": 3,
                     "wallet_id": 1,
                     "note": "Ăn phở",
-                    "date": "{datetime.utcnow().date()}"
+                    "date": "{date.today()}"
                 }}
             ]
         }}
@@ -133,7 +133,7 @@ class AIService:
         Quy tắc trích xuất:
         1. merchant: Tên cửa hàng, siêu thị, quán cafe (VD: Highlands Coffee, Circle K, Lotte Mart...).
         2. total: Tổng số tiền cuối cùng người dùng phải trả (Chuyển thành số nguyên, VD: 59000).
-        3. date: Ngày in trên hóa đơn (Định dạng YYYY-MM-DD). Nếu không thấy rõ, hãy dùng ngày hôm nay là: {datetime.utcnow().date()}
+        3. date: Ngày in trên hóa đơn (Định dạng YYYY-MM-DD). Nếu không thấy rõ, hãy dùng ngày hôm nay là: {date.today()}
         4. items: Danh sách các món hàng (Tên món, số lượng, đơn giá).
 
         Cấu trúc JSON mong muốn:
@@ -183,7 +183,7 @@ class AIService:
             "user_id": user_id,
             "sender": "user",
             "text": message,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
         chat_collection.insert_one(user_msg)
 
@@ -273,7 +273,7 @@ class AIService:
             "user_id": user_id,
             "sender": "bot",
             "text": bot_reply,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
         chat_collection.insert_one(bot_msg)
 
