@@ -4,7 +4,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 from app.models.enums import DebtType
 
-# Schema cho Tạo Khoản Nợ mới
 class DebtCreate(BaseModel):
     creditor_name: str = Field(..., description="Tên người vay/cho vay hoặc tên khoản nợ")
     type: DebtType
@@ -25,7 +24,6 @@ class DebtCreate(BaseModel):
             raise ValueError("Ngày đến hạn (due_date) không được là ngày trong quá khứ")
         return v
 
-# Schema cho Output Khoản Nợ
 class DebtResponse(BaseModel):
     debt_id: int
     user_id: int
@@ -40,7 +38,6 @@ class DebtResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Schema cho việc Trả Nợ (Repayment)
 class DebtRepaymentCreate(BaseModel):
     amount: Decimal = Field(..., gt=0, description="Số tiền trả đợt này")
     wallet_id: int

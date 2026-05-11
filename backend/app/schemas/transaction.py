@@ -37,9 +37,6 @@ class TransactionResponse(TransactionBase):
         from_attributes = True
 
 
-# ==========================================
-# CẤU TRÚC PHÂN TRANG (PAGINATION)
-# ==========================================
 class TransactionPaginationData(BaseModel):
     items: List[TransactionResponse]
     total: int
@@ -52,9 +49,6 @@ class TransactionListResponse(BaseModel):
     data: TransactionPaginationData
 
 
-# ==========================================
-# CÁC SCHEMA KHÁC
-# ==========================================
 class TransactionTransfer(BaseModel):
     source_wallet_id: int = Field(..., description="ID của ví bị trừ tiền")
     dest_wallet_id: int = Field(..., description="ID của ví được cộng tiền")

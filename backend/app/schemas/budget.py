@@ -4,7 +4,6 @@ from datetime import date
 from decimal import Decimal
 from app.models.enums import BudgetPeriod
 
-# Schema thiết lập ngân sách
 class BudgetCreate(BaseModel):
     category_id: int
     amount_limit: Decimal = Field(..., gt=0, description="Hạn mức chi tiêu")
@@ -13,7 +12,6 @@ class BudgetCreate(BaseModel):
     start_date: date
     end_date: date
 
-# Schema trả về thông tin ngân sách
 class BudgetResponse(BaseModel):
     budget_id: int
     user_id: int
@@ -26,7 +24,6 @@ class BudgetResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Schema đặc biệt cho API /progress (Tiến độ chi tiêu)
 class BudgetProgressResponse(BaseModel):
     budget_id: int
     category_id: int

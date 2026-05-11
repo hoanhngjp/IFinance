@@ -9,7 +9,7 @@ const getErrorMessage = (error) => {
   }
 
   if (Array.isArray(detail)) {
-    const normalized = detail
+    const msgs = detail
       .map((item) => {
         if (typeof item === 'string') return item;
         if (!item || typeof item !== 'object') return '';
@@ -23,8 +23,8 @@ const getErrorMessage = (error) => {
       })
       .filter(Boolean);
 
-    if (normalized.length > 0) {
-      return normalized.join(' | ');
+    if (msgs.length > 0) {
+      return msgs.join(' | ');
     }
   }
 
@@ -76,7 +76,6 @@ axiosClient.interceptors.response.use(
             localStorage.setItem('access_token', newAccessToken);
             if (newRefreshToken) localStorage.setItem('refresh_token', newRefreshToken);
 
-            // retry với token mới
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
             return axiosClient(originalRequest);
           }

@@ -15,10 +15,6 @@ def get_wallet_summary(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    Lấy báo cáo tổng quan tài sản ròng (Net Worth).
-    Phục vụ cho biểu đồ Dashboard.
-    """
     try:
         summary_data = wallet_service.get_summary(db, current_user.user_id)
         return {
@@ -33,7 +29,6 @@ def get_wallets(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """Lấy danh sách các ví đang hoạt động của User"""
     wallets = wallet_service.get_all(db, current_user.user_id)
     return {
         "status": "success",
@@ -46,7 +41,6 @@ def create_wallet(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """Tạo ví mới và khởi tạo số dư ban đầu nếu có"""
     try:
         new_wallet = wallet_service.create(db, wallet_in, current_user.user_id)
         return {
@@ -64,7 +58,6 @@ def update_wallet(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """Cập nhật metadata của ví (Không cập nhật balance)"""
     try:
         updated_wallet = wallet_service.update(db, wallet_id, wallet_in, current_user.user_id)
         return {
@@ -83,7 +76,6 @@ def delete_wallet(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """Xóa mềm (Soft Delete) ví, ẩn đi nhưng vẫn giữ lịch sử giao dịch"""
     try:
         wallet_service.delete(db, wallet_id, current_user.user_id)
         return {
