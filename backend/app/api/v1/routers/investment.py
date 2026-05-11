@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.encoders import jsonable_encoder
@@ -8,6 +9,7 @@ from app.schemas.investment import InvestmentCreate, InvestmentUpdateValue, Inve
 from app.api.deps import get_current_user
 from app.services.investment_service import investment_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/", response_model=dict)
@@ -59,8 +61,9 @@ def create_investment(inv_in: InvestmentCreate, db: Session = Depends(get_db), c
         return {"status": "success", "data": jsonable_encoder(new_inv)}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server investment")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.put("/{inv_id}/update", response_model=dict)
 def update_investment_value(inv_id: int, val_in: InvestmentUpdateValue, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -85,8 +88,9 @@ def receive_passive_income(inv_id: int, inc_in: InvestmentPassiveIncome, db: Ses
         }
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server investment")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.post("/{inv_id}/transactions", response_model=dict)
 def sell_investment(inv_id: int, sell_in: InvestmentSell, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -99,5 +103,6 @@ def sell_investment(inv_id: int, sell_in: InvestmentSell, db: Session = Depends(
         }
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server investment")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")

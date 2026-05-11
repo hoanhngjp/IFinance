@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fastapi.encoders import jsonable_encoder
@@ -8,6 +9,7 @@ from app.schemas.user import UserResponse, UserUpdate, UserChangePassword, UserP
 from app.api.deps import get_current_user
 from app.services.user_service import user_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/me", response_model=dict)
@@ -30,8 +32,9 @@ def update_user_me(
             "message": "Cập nhật thông tin thành công",
             "data": jsonable_encoder(UserResponse.model_validate(updated_user))
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi khi cập nhật thông tin user_id=%s", current_user.user_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.patch("/me/preferences", response_model=dict)
 def update_user_preferences(
@@ -45,8 +48,9 @@ def update_user_preferences(
             "status": "success",
             "data": jsonable_encoder(UserResponse.model_validate(updated_user))
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi khi cập nhật preferences user_id=%s", current_user.user_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.put("/me/password", response_model=dict)
 def update_user_password(
@@ -62,5 +66,6 @@ def update_user_password(
         }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi đổi mật khẩu: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi khi đổi mật khẩu user_id=%s", current_user.user_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")

@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
@@ -8,6 +9,7 @@ from app.schemas.user import UserCreate, UserResponse, Token, RefreshTokenReques
 from app.api.deps import get_current_user
 from app.services.auth_service import auth_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -21,8 +23,9 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Lỗi khi đăng ký tài khoản")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -37,8 +40,9 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
         return auth_service.google_auth(db, req.token)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi đăng nhập bằng Google: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi khi đăng nhập Google")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.post("/refresh-token", response_model=Token)
 def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):

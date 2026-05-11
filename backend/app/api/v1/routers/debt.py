@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -8,6 +9,7 @@ from app.schemas.debt import DebtCreate, DebtResponse, DebtRepaymentCreate
 from app.api.deps import get_current_user
 from app.services.debt_service import debt_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -25,8 +27,9 @@ def create_debt(
         }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server debt")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.get("/", response_model=dict)
 def get_debts(
@@ -52,8 +55,9 @@ def repay_debt(
         return {"status": "success", "message": "Ghi nhận trả nợ thành công"}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server debt")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.get("/{debt_id}/repayments", response_model=dict)
 def get_debt_repayments(

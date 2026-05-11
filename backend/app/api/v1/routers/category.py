@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -8,6 +9,7 @@ from app.schemas.category import CategoryCreate, CategoryResponse, CategoryTreeR
 from app.api.deps import get_current_user
 from app.services.category_service import category_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -26,8 +28,9 @@ def create_category(
     except ValueError as ve:
         status_c = 404 if "tồn tại" in str(ve) else 400
         raise HTTPException(status_code=status_c, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server category")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.get("/", response_model=dict)
 def get_categories(
@@ -57,8 +60,9 @@ def update_category(
     except ValueError as ve:
         status_c = 404 if "Không tìm thấy" in str(ve) else 400
         raise HTTPException(status_code=status_c, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server category")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.delete("/{category_id}", response_model=dict)
 def delete_category(
@@ -75,5 +79,6 @@ def delete_category(
     except ValueError as ve:
         status_c = 404 if "Không tìm thấy" in str(ve) else 400
         raise HTTPException(status_code=status_c, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server category")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -15,6 +16,7 @@ from fastapi import Request
 from app.schemas.ai import AIParseRequest, AIChatRequest, AIBudgetTemplateRequest
 from app.services.ai_service import ai_service
 
+logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
@@ -37,8 +39,9 @@ def parse_natural_language(
         raise HTTPException(status_code=400, detail=str(ve))
     except RuntimeError as re:
         raise HTTPException(status_code=503, detail=str(re))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi không xác định: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi khi parse natural language")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 
 @router.post("/ocr", response_model=dict)
@@ -78,8 +81,9 @@ async def ocr_receipt(
         raise HTTPException(status_code=400, detail=str(ve))
     except RuntimeError as re:
         raise HTTPException(status_code=503, detail=str(re))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi không xác định: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi khi OCR hóa đơn")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 
 @router.post("/chat", response_model=dict)
@@ -96,8 +100,9 @@ def chat_with_ai(
             "status": "success",
             "data": response_data
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi RAG Chatbot: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi RAG Chatbot")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 
 @router.get("/chat/history", response_model=dict)
@@ -116,8 +121,9 @@ def get_chat_history(
         }
     except RuntimeError as re:
         raise HTTPException(status_code=503, detail=str(re))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Lỗi khi lấy chat history session_id=%s", session_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 
 @router.post("/budget-template", response_model=dict)
@@ -138,5 +144,6 @@ def generate_budget_template(
         }
     except RuntimeError as re:
         raise HTTPException(status_code=503, detail=str(re))
-    except Exception as e:
-         raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Lỗi khi tạo budget template")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")

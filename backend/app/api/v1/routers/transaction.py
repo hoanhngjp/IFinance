@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -9,12 +10,8 @@ from app.schemas.transaction import TransactionCreate, TransactionResponse, Tran
 from app.api.deps import get_current_user
 from app.services.transaction_service import transaction_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _raise_http(ve: ValueError) -> None:
-    code = 404 if "Không tìm thấy" in str(ve) else 400
-    raise HTTPException(status_code=code, detail=str(ve))
 
 
 @router.get("/", response_model=dict)
@@ -45,7 +42,7 @@ def get_transactions(
             }
         }
     except ValueError as ve:
-        _raise_http(ve)
+        raise HTTPException(status_code=404 if "Không tìm thấy" in str(ve) else 400, detail=str(ve))
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 def create_transaction(
@@ -61,9 +58,10 @@ def create_transaction(
             "data": TransactionResponse.model_validate(new_tx)
         }
     except ValueError as ve:
-        _raise_http(ve)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=404 if "Không tìm thấy" in str(ve) else 400, detail=str(ve))
+    except Exception:
+        logger.exception("Lỗi khi tạo giao dịch user_id=%s", current_user.user_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.post("/bulk", response_model=dict, status_code=status.HTTP_201_CREATED)
 def create_bulk_transactions(
@@ -79,9 +77,10 @@ def create_bulk_transactions(
             "data": {"count": inserted_count}
         }
     except ValueError as ve:
-        _raise_http(ve)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=404 if "Không tìm thấy" in str(ve) else 400, detail=str(ve))
+    except Exception:
+        logger.exception("Lỗi khi nhập bulk giao dịch user_id=%s", current_user.user_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.put("/{transaction_id}", response_model=dict)
 def update_transaction(
@@ -98,7 +97,7 @@ def update_transaction(
             "data": TransactionResponse.model_validate(tx)
         }
     except ValueError as ve:
-        _raise_http(ve)
+        raise HTTPException(status_code=404 if "Không tìm thấy" in str(ve) else 400, detail=str(ve))
 
 @router.delete("/{transaction_id}", response_model=dict)
 def delete_transaction(
@@ -113,9 +112,10 @@ def delete_transaction(
             "message": "Đã xóa giao dịch và hoàn lại tiền ví thành công"
         }
     except ValueError as ve:
-        _raise_http(ve)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=404 if "Không tìm thấy" in str(ve) else 400, detail=str(ve))
+    except Exception:
+        logger.exception("Lỗi khi xóa giao dịch id=%s", transaction_id)
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.post("/transfer", response_model=dict)
 def transfer_money(
@@ -131,4 +131,4 @@ def transfer_money(
             "data": {"transaction_ids": [tx_out_id, tx_in_id]}
         }
     except ValueError as ve:
-        _raise_http(ve)
+        raise HTTPException(status_code=404 if "Không tìm thấy" in str(ve) else 400, detail=str(ve))

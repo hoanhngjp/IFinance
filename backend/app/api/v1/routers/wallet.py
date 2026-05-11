@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -8,6 +9,7 @@ from app.schemas.wallet import WalletCreate, WalletUpdate, WalletResponse
 from app.api.deps import get_current_user
 from app.services.wallet_service import wallet_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/summary", response_model=dict)
@@ -21,8 +23,9 @@ def get_wallet_summary(
             "status": "success",
             "data": summary_data
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server wallet")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.get("/", response_model=dict)
 def get_wallets(
@@ -48,8 +51,9 @@ def create_wallet(
             "message": "Tạo ví thành công",
             "data": WalletResponse.model_validate(new_wallet)
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server wallet")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.put("/{wallet_id}", response_model=dict)
 def update_wallet(
@@ -67,8 +71,9 @@ def update_wallet(
         }
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server wallet")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
 
 @router.delete("/{wallet_id}", response_model=dict)
 def delete_wallet(
@@ -85,5 +90,6 @@ def delete_wallet(
     except ValueError as ve:
         status_c = 404 if "Không tìm thấy" in str(ve) else 400
         raise HTTPException(status_code=status_c, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+    except Exception:
+        logger.exception("Lỗi server wallet")
+        raise HTTPException(status_code=500, detail="Lỗi server, vui lòng thử lại.")
