@@ -6,21 +6,13 @@ import CurrencyInput from '../../components/CurrencyInput'
 
 export default function AddTransaction() {
   const navigate = useNavigate();
-  const [inputType, setInputType] = useState('smart'); // Đổi mặc định sang tab AI
+  const [inputType, setInputType] = useState('smart');
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // State cho AI Smart Input
   const [aiText, setAiText] = useState('');
-
-  // State cho AI OCR
   const [ocrFile, setOcrFile] = useState(null);
   const [ocrPreview, setOcrPreview] = useState(null);
-
-  // Dữ liệu cho Dropdown
   const [wallets, setWallets] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
-
-  // Form State
   const [formData, setFormData] = useState({
     amount: '',
     category_id: '',
@@ -46,7 +38,6 @@ export default function AddTransaction() {
         });
         setAllCategories(flatCats);
 
-        // Thiết lập giá trị mặc định lúc mới vào trang
         if(walletsRes.data.length > 0) {
            setFormData(prev => ({ ...prev, wallet_id: walletsRes.data[0].wallet_id }));
         }
@@ -74,9 +65,6 @@ export default function AddTransaction() {
     });
   };
 
-  // =====================================
-  // HÀM XỬ LÝ AI SMART INPUT
-  // =====================================
   const handleAiSubmit = async () => {
     if (!aiText.trim()) return;
     setIsProcessing(true);
@@ -86,7 +74,6 @@ export default function AddTransaction() {
       const aiResult = response.data?.data || response.data;
 
       if (aiResult && aiResult.transactions && aiResult.transactions.length > 0) {
-        // Lấy giao dịch đầu tiên để điền vào form thủ công
         const tx = aiResult.transactions[0];
 
         setFormData(prev => ({
@@ -99,7 +86,6 @@ export default function AddTransaction() {
         }));
 
         if (aiResult.transactions.length > 1) {
-            // Cảnh báo nhẹ nếu AI nhận diện ra nhiều hơn 1 giao dịch
             alert(`AI nhận diện được ${aiResult.transactions.length} giao dịch. Tạm thời đang điền giao dịch đầu tiên vào form để bạn kiểm tra!`);
         }
 
@@ -114,9 +100,6 @@ export default function AddTransaction() {
     }
   };
 
-  // =====================================
-  // HÀM XỬ LÝ ẢNH & GỌI API OCR
-  // =====================================
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -147,7 +130,6 @@ export default function AddTransaction() {
       if (aiResult) {
         const { total, merchant, date, items } = aiResult;
 
-        // Tạo câu ghi chú từ dữ liệu OCR
         let noteText = merchant ? `Thanh toán tại ${merchant}` : "Quét hóa đơn";
         if (items && items.length > 0) {
            const itemNames = items.slice(0, 2).map(i => i.name).join(', ');
@@ -173,9 +155,6 @@ export default function AddTransaction() {
     }
   };
 
-  // =====================================
-  // HÀM LƯU GIAO DỊCH VÀO DATABASE
-  // =====================================
   const handleManualSubmit = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -213,7 +192,6 @@ export default function AddTransaction() {
             <button onClick={() => setInputType('manual')} className={`flex-1 py-2.5 rounded-xl font-medium text-sm flex justify-center items-center gap-2 transition-all ${inputType === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Keyboard size={18} /> Thủ công</button>
           </div>
 
-          {/* TAB THỦ CÔNG */}
           {inputType === 'manual' && (
             <form onSubmit={handleManualSubmit} className="space-y-5 bg-white rounded-2xl animate-fade-in">
                <div className="flex gap-4 mb-4">
@@ -268,7 +246,6 @@ export default function AddTransaction() {
             </form>
           )}
 
-          {/* TAB AI NHẬP */}
           {inputType === 'smart' && (
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 animate-fade-in">
               <div className="flex items-center gap-2 text-indigo-600 mb-2">
@@ -297,7 +274,6 @@ export default function AddTransaction() {
             </div>
           )}
 
-          {/* TAB OCR QUÉT HÓA ĐƠN */}
           {inputType === 'ocr' && (
              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 animate-fade-in">
               <div className="flex items-center gap-2 text-indigo-600 mb-2">

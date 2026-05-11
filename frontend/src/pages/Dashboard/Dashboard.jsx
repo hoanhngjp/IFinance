@@ -112,13 +112,13 @@ export default function Dashboard() {
     } else {
         const catStats = {};
         filteredTxs.forEach(tx => {
-            // Vì activeCard chỉ có 'income' hoặc 'expense', biểu đồ tròn cũng sẽ tự động lọc chuẩn xác
             if (tx.transaction_type === activeCard) {
                 const catName = categoryMap[tx.category_id]?.name || 'Khác';
                 catStats[catName] = (catStats[catName] || 0) + Number(tx.amount || 0);
             }
         });
         pie = Object.keys(catStats).map(k => ({ name: k, value: catStats[k] }));
+
     }
 
     const dStats = {};
@@ -142,7 +142,6 @@ export default function Dashboard() {
 
         if (!dStats[key]) dStats[key] = { date: display, rawDate: key, income: 0, expense: 0 };
 
-        // FIX: Biểu đồ cột cũng chỉ hiển thị Thu/Chi thuần
         if (tx.transaction_type === 'income') {
             dStats[key].income += Number(tx.amount || 0);
         } else if (tx.transaction_type === 'expense') {
@@ -166,7 +165,6 @@ export default function Dashboard() {
     <div className="p-4 lg:p-8 bg-gray-50 min-h-screen animate-fade-in pb-24">
       <div className="max-w-6xl mx-auto space-y-6 lg:space-y-8">
 
-        {/* ================= HEADER & FILTER ================= */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 lg:p-6 rounded-3xl shadow-sm border border-gray-100 gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center border-2 border-white shadow-sm">
@@ -215,7 +213,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ================= 3 THẺ TỔNG QUAN ================= */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
             onClick={() => setActiveCard('balance')}
@@ -255,7 +252,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ================= KHU VỰC BIỂU ĐỒ ================= */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all">
             <h3 className="font-bold text-slate-800 mb-6 text-lg">{pieTitle}</h3>
@@ -304,7 +300,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ================= GIAO DỊCH GẦN ĐÂY & DANH SÁCH VÍ ================= */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="flex justify-between items-center mb-4">
@@ -318,7 +313,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 dashboardData?.recentTxs.map(tx => {
-                  // FIX: Cập nhật màu xanh/đỏ cho các loại giao dịch mang tính chất thu/chi
+                  // investment_return cũng hiển thị màu thu nhập
                   const isIncomeFlow = ['income', 'investment_return'].includes(tx.transaction_type);
 
                   const catInfo = categoryMap[tx.category_id] || { name: 'Khác', icon: '❓' };

@@ -68,7 +68,6 @@ class TransactionService:
         category_cache = {}
 
         for tx_in in tx_list:
-            # Check Wallet Dynamic Creation
             is_dynamic_wallet = (tx_in.wallet_id < 0) and getattr(tx_in, 'new_wallet_name', None)
             
             if is_dynamic_wallet:
@@ -78,9 +77,9 @@ class TransactionService:
                     new_wallet = Wallet(
                         user_id=user_id,
                         name=tx_in.new_wallet_name.strip(),
-                        type=WalletType.bank, # Default ngầm định là Bank cho gọn
+                        type=WalletType.bank,
                         currency="VND",
-                        balance=0 # Có thể âm tùy ý nhờ Bulk logic
+                        balance=0
                     )
                     db.add(new_wallet)
                     db.flush()
@@ -98,7 +97,6 @@ class TransactionService:
                 wallet = wallet_cache[tx_in.wallet_id]
                 resolved_wallet_id = wallet.wallet_id
 
-            # Check category Dynamic Creation
             is_dynamic_cat = (tx_in.category_id < 0) and getattr(tx_in, 'new_category_name', None)
 
             if is_dynamic_cat:
@@ -132,7 +130,6 @@ class TransactionService:
                 category = category_cache[tx_in.category_id]
                 resolved_cat_id = category.category_id
 
-            # Check safe spend limit
             if not ignore_spend_limit:
                 if tx_in.transaction_type == TransactionType.expense and wallet.type != WalletType.credit:
                     if wallet.balance < tx_in.amount:
@@ -151,13 +148,11 @@ class TransactionService:
             db.add(new_tx)
             new_txs.append(new_tx)
 
-            # Update cached wallet balance in memory
             if tx_in.transaction_type == TransactionType.expense:
                 wallet.balance -= tx_in.amount
             elif tx_in.transaction_type == TransactionType.income:
                 wallet.balance += tx_in.amount
 
-            # --- TÍCH HỢP QUẢN LÝ NỢ (DEBT) ---
             creditor = getattr(tx_in, 'creditor_name', None)
             if creditor:
                 cat_name = category.name.lower()
@@ -181,7 +176,6 @@ class TransactionService:
                     db.add(new_debt)
                 
                 elif is_collect or is_repay:
-                    # Gạch nợ tự động bằng cách tìm hợp đồng nợ cũ theo Tên (Fuzzy match)
                     target_debt = db.query(Debt).filter(
                         Debt.user_id == user_id, 
                         Debt.creditor_name.ilike(f"%{creditor.strip()}%"),
@@ -189,7 +183,7 @@ class TransactionService:
                     ).first()
 
                     if target_debt:
-                        db.flush() # Flush để new_tx được SQLAlchemy gán ID (transaction_id)
+                        db.flush()
                         target_debt.remaining_amount -= tx_in.amount
                         if target_debt.remaining_amount < 0:
                             target_debt.remaining_amount = 0
@@ -211,14 +205,12 @@ class TransactionService:
             raise ValueError("Không tìm thấy giao dịch")
 
         wallet = crud_wallet.get_by_user_id(db, user_id=user_id, wallet_id=tx.wallet_id)
-        
-        # 1. Hoàn rủi ro số dư
+
         if tx.transaction_type == TransactionType.expense:
             wallet.balance += tx.amount
         elif tx.transaction_type == TransactionType.income:
             wallet.balance -= tx.amount
 
-        # 2. Cập nhật record
         if tx_in.amount is not None:
              tx.amount = tx_in.amount
         if tx_in.category_id is not None:
@@ -228,7 +220,6 @@ class TransactionService:
         if tx_in.date is not None:
              tx.date = datetime.combine(tx_in.date, datetime.min.time()).replace(tzinfo=timezone.utc)
 
-        # 3. Trừ/Cộng tiền dựa trên số tiền mới
         if tx.transaction_type == TransactionType.expense:
             wallet.balance -= tx.amount
         elif tx.transaction_type == TransactionType.income:
@@ -277,7 +268,6 @@ class TransactionService:
         source_wallet.balance -= transfer_in.amount
         dest_wallet.balance += transfer_in.amount
 
-        # Note: Ideally, IDs 17 and 18 are static 'Transfer' categories.
         tx_out = Transaction(
              user_id=user_id,
              wallet_id=source_wallet.wallet_id,
