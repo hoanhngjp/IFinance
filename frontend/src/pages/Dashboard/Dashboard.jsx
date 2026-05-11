@@ -40,12 +40,12 @@ export default function Dashboard() {
           axiosClient.get('/transactions/?page=1&size=2000')
         ]);
 
-        setRawWallets(Array.isArray(walletsRes) ? walletsRes : []);
+        setRawWallets(Array.isArray(walletsRes?.data) ? walletsRes.data : []);
 
-        const txData = txRes?.items ?? [];
+        const txData = txRes?.data?.items ?? [];
         setRawTxs(txData);
 
-        const categoriesData = Array.isArray(categoriesRes) ? categoriesRes : [];
+        const categoriesData = Array.isArray(categoriesRes?.data) ? categoriesRes.data : [];
         const cMap = {};
         const flattenCategories = (cats) => {
           if (!Array.isArray(cats)) return;
